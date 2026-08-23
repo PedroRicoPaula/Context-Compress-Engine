@@ -9,8 +9,15 @@ use std::path::{Path, PathBuf};
 pub const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 /// File names and extensions refused even inside the allowed root.
-const DENIED_NAMES: &[&str] =
-    &[".env", ".netrc", ".npmrc", "id_rsa", "id_ed25519", "credentials", ".htpasswd"];
+const DENIED_NAMES: &[&str] = &[
+    ".env",
+    ".netrc",
+    ".npmrc",
+    "id_rsa",
+    "id_ed25519",
+    "credentials",
+    ".htpasswd",
+];
 const DENIED_EXTENSIONS: &[&str] = &["pem", "key", "p12", "pfx", "keystore"];
 
 /// Why a path was refused.
@@ -57,7 +64,11 @@ fn is_denied(path: &Path) -> bool {
     let ext_denied = path
         .extension()
         .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|ext| DENIED_EXTENSIONS.iter().any(|d| ext.eq_ignore_ascii_case(d)));
+        .is_some_and(|ext| {
+            DENIED_EXTENSIONS
+                .iter()
+                .any(|d| ext.eq_ignore_ascii_case(d))
+        });
 
     // `.git/config` holds credentials in some setups; the whole dir is noise anyway.
     let in_git_dir = path.components().any(|c| c.as_os_str() == ".git");
@@ -79,8 +90,11 @@ pub fn resolve(requested: &str, root: &Path) -> Result<PathBuf, GuardError> {
     }
 
     let root = root.canonicalize().map_err(|_| GuardError::Unreadable)?;
-    let candidate =
-        if Path::new(requested).is_absolute() { PathBuf::from(requested) } else { root.join(requested) };
+    let candidate = if Path::new(requested).is_absolute() {
+        PathBuf::from(requested)
+    } else {
+        root.join(requested)
+    };
 
     let resolved = candidate.canonicalize().map_err(|_| GuardError::NotFound)?;
 
@@ -97,7 +111,9 @@ pub fn resolve(requested: &str, root: &Path) -> Result<PathBuf, GuardError> {
         return Err(GuardError::NotARegularFile);
     }
     if metadata.len() > MAX_FILE_BYTES {
-        return Err(GuardError::TooLarge { bytes: metadata.len() });
+        return Err(GuardError::TooLarge {
+            bytes: metadata.len(),
+        });
     }
 
     Ok(resolved)
@@ -129,8 +145,8 @@ mod tests {
     impl Scratch {
         fn new() -> Self {
             let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
-            let dir = std::env::temp_dir()
-                .join(format!("cce-guard-{}-{unique}", std::process::id()));
+            let dir =
+                std::env::temp_dir().join(format!("cce-guard-{}-{unique}", std::process::id()));
             std::fs::create_dir_all(&dir).expect("scratch dir");
             Self(dir)
         }
@@ -164,19 +180,39 @@ mod tests {
     }
 
     #[test]
-    fn rejects_traversal_out_of_the_root() {
+    fn rejects_traversal_to_a_real_file_outside_the_root() {
+        // The case that matters: the target exists and is readable, and the
+        // only thing standing between the caller and it is the root check.
+        let scratch = Scratch::new();
+        scratch.write("secret.rs", "outside the root");
+        let inner_root = scratch.write("inner/placeholder.rs", "x");
+        let inner_root = inner_root.parent().expect("inner dir");
+
+        assert_eq!(
+            resolve("../secret.rs", inner_root),
+            Err(GuardError::OutsideRoot)
+        );
+    }
+
+    #[test]
+    fn traversal_to_a_nonexistent_target_fails_as_not_found() {
+        // Also blocked, but by canonicalize() rather than the root check, so
+        // the category differs. Documented so the distinction is deliberate.
         let scratch = Scratch::new();
         scratch.write("nested/inner.rs", "x");
         assert_eq!(
-            resolve("nested/../../../etc/hosts", scratch.root()),
-            Err(GuardError::OutsideRoot)
+            resolve("nested/../../../nope-9f2a/hosts", scratch.root()),
+            Err(GuardError::NotFound)
         );
     }
 
     #[test]
     fn rejects_an_absolute_path_outside_the_root() {
         let scratch = Scratch::new();
-        assert_eq!(resolve("/etc/hosts", scratch.root()), Err(GuardError::OutsideRoot));
+        assert_eq!(
+            resolve("/etc/hosts", scratch.root()),
+            Err(GuardError::OutsideRoot)
+        );
     }
 
     #[test]
@@ -188,14 +224,20 @@ mod tests {
     #[test]
     fn rejects_a_missing_file() {
         let scratch = Scratch::new();
-        assert_eq!(resolve("nope.rs", scratch.root()), Err(GuardError::NotFound));
+        assert_eq!(
+            resolve("nope.rs", scratch.root()),
+            Err(GuardError::NotFound)
+        );
     }
 
     #[test]
     fn rejects_a_directory() {
         let scratch = Scratch::new();
         scratch.write("sub/f.rs", "x");
-        assert_eq!(resolve("sub", scratch.root()), Err(GuardError::NotARegularFile));
+        assert_eq!(
+            resolve("sub", scratch.root()),
+            Err(GuardError::NotARegularFile)
+        );
     }
 
     #[test]
@@ -204,14 +246,20 @@ mod tests {
         scratch.write(".env", "SECRET=1");
         scratch.write("server.pem", "-----BEGIN-----");
         assert_eq!(resolve(".env", scratch.root()), Err(GuardError::Denied));
-        assert_eq!(resolve("server.pem", scratch.root()), Err(GuardError::Denied));
+        assert_eq!(
+            resolve("server.pem", scratch.root()),
+            Err(GuardError::Denied)
+        );
     }
 
     #[test]
     fn rejects_anything_inside_a_git_directory() {
         let scratch = Scratch::new();
         scratch.write(".git/config", "[user]");
-        assert_eq!(resolve(".git/config", scratch.root()), Err(GuardError::Denied));
+        assert_eq!(
+            resolve(".git/config", scratch.root()),
+            Err(GuardError::Denied)
+        );
     }
 
     #[test]
@@ -227,7 +275,9 @@ mod tests {
     fn error_messages_never_contain_a_path() {
         // SECURITY.md: errors carry a category, not directory structure.
         let scratch = Scratch::new();
-        let message = resolve("/etc/hosts", scratch.root()).unwrap_err().to_string();
+        let message = resolve("/etc/hosts", scratch.root())
+            .unwrap_err()
+            .to_string();
         assert!(!message.contains('/'), "{message}");
     }
 }

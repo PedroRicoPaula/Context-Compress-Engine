@@ -16,7 +16,9 @@ fn is_import(trimmed: &str, lang: Language) -> bool {
     // Only top-level imports are hoisted: an indented `import` inside a
     // function or a conditional block is control flow, and moving it would
     // change behaviour.
-    lang.import_prefixes().iter().any(|prefix| trimmed.starts_with(prefix))
+    lang.import_prefixes()
+        .iter()
+        .any(|prefix| trimmed.starts_with(prefix))
 }
 
 /// Extract top-level import lines, preserving first-seen order and dropping
@@ -24,7 +26,10 @@ fn is_import(trimmed: &str, lang: Language) -> bool {
 #[must_use]
 pub fn split(source: &str, lang: Language) -> Split {
     if lang.import_prefixes().is_empty() {
-        return Split { imports: Vec::new(), body: source.to_owned() };
+        return Split {
+            imports: Vec::new(),
+            body: source.to_owned(),
+        };
     }
 
     let mut imports: Vec<String> = Vec::new();
@@ -49,6 +54,44 @@ pub fn split(source: &str, lang: Language) -> Split {
     Split { imports, body }
 }
 
+/// Split off the file preamble: everything that must stay *above* the imports.
+///
+/// Hoisting imports to the very top would push a module-level doc comment
+/// (`//!`) or inner attribute (`#![...]`) below them, and both are only legal
+/// at the top of a file. The result would not compile -- a compressor that
+/// emits invalid code has failed at its one job.
+///
+/// Returns `(preamble, rest)`.
+#[must_use]
+pub fn split_preamble(source: &str) -> (String, String) {
+    let mut preamble = String::new();
+    let mut rest = String::new();
+    let mut still_preamble = true;
+
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        let belongs_up_top = trimmed.starts_with("//!")
+            || trimmed.starts_with("#![")
+            || trimmed.starts_with("#!")
+            || trimmed.is_empty();
+
+        if still_preamble && belongs_up_top {
+            preamble.push_str(line);
+            preamble.push('\n');
+            continue;
+        }
+        still_preamble = false;
+        rest.push_str(line);
+        rest.push('\n');
+    }
+
+    // A preamble of nothing but blank lines is not a preamble.
+    if preamble.trim().is_empty() {
+        return (String::new(), source.to_owned());
+    }
+    (preamble, rest)
+}
+
 /// Render hoisted imports as a compact block, or an empty string if there are none.
 #[must_use]
 pub fn render(imports: &[String]) -> String {
@@ -71,7 +114,10 @@ mod tests {
 
     #[test]
     fn hoists_rust_use_statements_out_of_the_body() {
-        let split = split("use std::fmt;\nfn main() {}\nuse std::io;\n", Language::Rust);
+        let split = split(
+            "use std::fmt;\nfn main() {}\nuse std::io;\n",
+            Language::Rust,
+        );
         assert_eq!(split.imports, vec!["use std::fmt;", "use std::io;"]);
         assert_eq!(split.body, "fn main() {}\n");
     }
@@ -101,10 +147,10 @@ mod tests {
     #[test]
     fn does_not_match_a_prefix_without_its_trailing_space() {
         // "used" and "important" must not be mistaken for "use " / "import ".
-        let split = split("used = 1\n", Language::Rust);
-        assert!(split.imports.is_empty());
-        let split = split("important = 1\n", Language::Python);
-        assert!(split.imports.is_empty());
+        let rust = split("used = 1\n", Language::Rust);
+        assert!(rust.imports.is_empty());
+        let python = split("important = 1\n", Language::Python);
+        assert!(python.imports.is_empty());
     }
 
     #[test]
@@ -123,6 +169,33 @@ mod tests {
     #[test]
     fn render_separates_the_block_from_the_body() {
         assert_eq!(render(&["use a;".to_owned()]), "use a;\n\n");
+    }
+
+    #[test]
+    fn preamble_keeps_module_docs_above_the_imports() {
+        let (preamble, rest) = split_preamble("//! Module doc.\n\nfn f() {}\n");
+        assert_eq!(preamble, "//! Module doc.\n\n");
+        assert_eq!(rest, "fn f() {}\n");
+    }
+
+    #[test]
+    fn preamble_keeps_inner_attributes_too() {
+        let (preamble, _) = split_preamble("#![forbid(unsafe_code)]\nfn f() {}\n");
+        assert_eq!(preamble, "#![forbid(unsafe_code)]\n");
+    }
+
+    #[test]
+    fn a_file_with_no_preamble_yields_an_empty_one() {
+        let (preamble, rest) = split_preamble("fn f() {}\n");
+        assert!(preamble.is_empty());
+        assert_eq!(rest, "fn f() {}\n");
+    }
+
+    #[test]
+    fn a_doc_comment_further_down_is_not_a_preamble() {
+        // Only a leading run counts; `//!` after real code stays where it is.
+        let (preamble, _) = split_preamble("fn f() {}\n//! stray\n");
+        assert!(preamble.is_empty());
     }
 
     #[test]

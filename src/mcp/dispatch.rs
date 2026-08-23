@@ -19,7 +19,10 @@ pub enum Method {
     /// Post-handshake notification. Requires no reply.
     Initialized,
     ToolsList,
-    ToolsCall { name: String, arguments: Value },
+    ToolsCall {
+        name: String,
+        arguments: Value,
+    },
     Ping,
     Unknown(String),
 }
@@ -73,7 +76,7 @@ pub fn tools_list_result(tools: &[ToolSpec]) -> Value {
 /// the protocol call itself succeeded, so the model gets to see the reason and
 /// retry rather than the client treating it as a transport fault.
 #[must_use]
-pub fn tool_result(text: String, is_error: bool) -> Value {
+pub fn tool_result(text: &str, is_error: bool) -> Value {
     json!({
         "content": [ { "type": "text", "text": text } ],
         "isError": is_error
@@ -92,7 +95,12 @@ pub fn unknown_method_response(id: Value, method: &str) -> Response {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+    #![allow(
+        clippy::panic,
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::indexing_slicing
+    )]
     use super::*;
 
     fn request(method: &str, params: Option<Value>) -> Request {
@@ -112,7 +120,10 @@ mod tests {
 
     #[test]
     fn accepts_both_spellings_of_the_initialized_notification() {
-        assert_eq!(classify(&request("notifications/initialized", None)), Method::Initialized);
+        assert_eq!(
+            classify(&request("notifications/initialized", None)),
+            Method::Initialized
+        );
         assert_eq!(classify(&request("initialized", None)), Method::Initialized);
     }
 
@@ -170,7 +181,7 @@ mod tests {
 
     #[test]
     fn tool_result_marks_errors_without_failing_the_rpc() {
-        let result = tool_result("boom".to_owned(), true);
+        let result = tool_result("boom", true);
         assert_eq!(result["isError"], true);
         assert_eq!(result["content"][0]["text"], "boom");
         assert_eq!(result["content"][0]["type"], "text");

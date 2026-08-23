@@ -8,102 +8,38 @@
 
 mod compress;
 mod mcp;
+mod tool;
 
 use std::path::Path;
 use std::process::ExitCode;
 
-use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::io::{stdin, stdout, BufReader};
 
-use compress::OUTLINE_THRESHOLD_BYTES;
 use mcp::dispatch::{self, Method};
-use mcp::protocol::{codes, Request, Response, ToolSpec};
+use mcp::protocol::{codes, Request, Response};
 use mcp::transport::{self, Incoming};
-
-const TOOL_COMPRESS_FILE: &str = "compress_file";
-
-/// Arguments for `compress_file`, exactly as the JSON schema below declares them.
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CompressFileArgs {
-    file_path: String,
-    /// Accepted and echoed, not yet used for ranking. It is the hook for V2
-    /// relevance scoring — see `docs/BACKLOG.md`.
-    #[serde(default)]
-    task_description: String,
-}
-
-fn tool_specs() -> Vec<ToolSpec> {
-    vec![ToolSpec {
-        name: TOOL_COMPRESS_FILE,
-        description: "Compress a source file into a high-signal context pack. Strips \
-                      non-doc comments, hoists and dedupes imports, collapses whitespace, \
-                      and falls back to a signature-only outline for large files.",
-        input_schema: json!({
-            "type": "object",
-            "properties": {
-                "filePath": {
-                    "type": "string",
-                    "description": "Path to the file, relative to the server's working directory."
-                },
-                "taskDescription": {
-                    "type": "string",
-                    "description": "What the context is for. Reserved for relevance ranking; ignored in V1."
-                }
-            },
-            "required": ["filePath"],
-            "additionalProperties": false
-        }),
-    }]
-}
-
-/// Render a compression report as the text the model will read.
-fn render_report(report: &compress::Report, task: &str) -> String {
-    let mode = if report.outlined { "outline" } else { "full" };
-    let mut header = format!(
-        "// context pack | {lang:?} | {mode} | {orig} -> {new} bytes ({saved}% saved)\n",
-        lang = report.language,
-        orig = report.original_bytes,
-        new = report.compressed_bytes,
-        saved = report.saved_percent(),
-    );
-    if !task.trim().is_empty() {
-        header.push_str(&format!("// task: {}\n", task.trim()));
-    }
-    header.push('\n');
-    header.push_str(&report.text);
-    header
-}
-
-/// Execute a tool call. Tool-level failures come back as `Ok(error text)` so
-/// the model sees the reason instead of the client seeing a transport fault.
-fn call_tool(name: &str, arguments: &Value, root: &Path) -> Result<Value, (i32, String)> {
-    if name != TOOL_COMPRESS_FILE {
-        return Err((codes::INVALID_PARAMS, format!("unknown tool: {name}")));
-    }
-
-    let args: CompressFileArgs = serde_json::from_value(arguments.clone())
-        .map_err(|_| (codes::INVALID_PARAMS, "expected { filePath: string }".to_owned()))?;
-
-    match compress::compress_file(&args.file_path, root, OUTLINE_THRESHOLD_BYTES) {
-        Ok(report) => Ok(dispatch::tool_result(render_report(&report, &args.task_description), false)),
-        // Guard errors are categories, never OS messages (docs/SECURITY.md).
-        Err(error) => Ok(dispatch::tool_result(format!("compress_file failed: {error}"), true)),
-    }
-}
+use tool::{call_tool, tool_specs};
 
 /// Build the reply for one request, or `None` if it was a notification.
 fn handle(request: &Request, root: &Path) -> Option<Response> {
+    // JSON-RPC 2.0: a notification carries no id and MUST NOT be answered --
+    // whatever its method. Replying would leave the client matching a response
+    // to a request it never made.
+    if request.is_notification() {
+        return None;
+    }
     let id = request.id.clone().unwrap_or(Value::Null);
 
     match dispatch::classify(request) {
-        Method::Initialized => None,
+        // `Initialized` is reachable here only if a client sent it *with* an id,
+        // against the spec. Answer anyway rather than leave it waiting.
+        Method::Initialized | Method::Ping => Some(Response::success(id, json!({}))),
         Method::Initialize => Some(Response::success(id, dispatch::initialize_result())),
-        Method::Ping => Some(Response::success(id, json!({}))),
-        Method::ToolsList => {
-            Some(Response::success(id, dispatch::tools_list_result(&tool_specs())))
-        }
+        Method::ToolsList => Some(Response::success(
+            id,
+            dispatch::tools_list_result(&tool_specs()),
+        )),
         Method::ToolsCall { name, arguments } => Some(match call_tool(&name, &arguments, root) {
             Ok(result) => Response::success(id, result),
             Err((code, message)) => Response::failure(id, code, message),
@@ -185,9 +121,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+    #![allow(
+        clippy::panic,
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::indexing_slicing
+    )]
     use super::*;
-    use compress::Language;
+    use tool::TOOL_COMPRESS_FILE;
 
     fn request(line: &str) -> Request {
         serde_json::from_str(line).expect("valid request json")
@@ -211,6 +152,18 @@ mod tests {
         let root = std::env::current_dir().expect("cwd");
         let request = request(r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#);
         assert!(handle(&request, &root).is_none());
+    }
+
+    #[test]
+    fn no_notification_is_ever_answered_whatever_its_method() {
+        let root = std::env::current_dir().expect("cwd");
+        for method in ["tools/list", "initialize", "ping", "resources/list"] {
+            let line = format!(r#"{{"jsonrpc":"2.0","method":"{method}"}}"#);
+            assert!(
+                handle(&request(&line), &root).is_none(),
+                "answered {method}"
+            );
+        }
     }
 
     #[test]
@@ -251,29 +204,9 @@ mod tests {
         );
         assert!(value["error"].is_null(), "{value}");
         assert_eq!(value["result"]["isError"], true);
-        let text = value["result"]["content"][0]["text"].as_str().unwrap_or_default();
+        let text = value["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default();
         assert!(text.contains("outside the allowed root"), "{text}");
-    }
-
-    #[test]
-    fn compressing_a_real_file_returns_a_stats_header() {
-        // src/main.rs is guaranteed to exist relative to the crate root.
-        let root = std::env::current_dir().expect("cwd");
-        let result = call_tool(
-            TOOL_COMPRESS_FILE,
-            &json!({ "filePath": "src/main.rs", "taskDescription": "review the wiring" }),
-            &root,
-        )
-        .expect("tool call succeeds");
-        let text = result["content"][0]["text"].as_str().unwrap_or_default();
-        assert!(text.starts_with("// context pack | Rust |"), "{text}");
-        assert!(text.contains("// task: review the wiring"), "{text}");
-        assert_eq!(result["isError"], false);
-    }
-
-    #[test]
-    fn the_task_line_is_omitted_when_no_task_is_given() {
-        let report = compress::compress_str("fn f() {}\n", Language::Rust, OUTLINE_THRESHOLD_BYTES);
-        assert!(!render_report(&report, "   ").contains("// task:"));
     }
 }

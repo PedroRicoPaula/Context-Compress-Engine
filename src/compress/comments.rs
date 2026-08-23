@@ -27,27 +27,26 @@ fn scan(line: &str, marker: &str, blocks: bool, quote_chars: &[char]) -> Found {
             escaped = false;
             continue;
         }
-        match in_string {
-            Some(quote) => {
-                if ch == '\\' {
-                    escaped = true;
-                } else if ch == quote {
-                    in_string = None;
-                }
+        if let Some(quote) = in_string {
+            if ch == '\\' {
+                escaped = true;
+            } else if ch == quote {
+                in_string = None;
             }
-            None => {
-                if quote_chars.contains(&ch) {
-                    in_string = Some(ch);
-                    continue;
-                }
-                let rest = line.get(index..).unwrap_or_default();
-                if blocks && rest.starts_with("/*") {
-                    return Found::BlockOpen(index);
-                }
-                if rest.starts_with(marker) {
-                    return Found::LineComment(index);
-                }
-            }
+            continue;
+        }
+
+        // Outside a string literal: a marker here is a real comment.
+        if quote_chars.contains(&ch) {
+            in_string = Some(ch);
+            continue;
+        }
+        let rest = line.get(index..).unwrap_or_default();
+        if blocks && rest.starts_with("/*") {
+            return Found::BlockOpen(index);
+        }
+        if rest.starts_with(marker) {
+            return Found::LineComment(index);
         }
     }
     Found::Nothing
@@ -68,7 +67,9 @@ const fn quote_chars(lang: Language) -> &'static [char] {
 }
 
 fn is_doc_line(trimmed: &str, lang: Language) -> bool {
-    lang.doc_prefixes().iter().any(|prefix| trimmed.starts_with(prefix))
+    lang.doc_prefixes()
+        .iter()
+        .any(|prefix| trimmed.starts_with(prefix))
 }
 
 /// Remove non-documentation comments from `source`.
@@ -161,7 +162,10 @@ mod tests {
 
     #[test]
     fn drops_a_comment_only_line() {
-        assert_eq!(strip("// noise\nlet x = 1;\n", Language::Rust), "let x = 1;\n");
+        assert_eq!(
+            strip("// noise\nlet x = 1;\n", Language::Rust),
+            "let x = 1;\n"
+        );
     }
 
     #[test]
@@ -179,7 +183,10 @@ mod tests {
     fn keeps_a_doc_block_comment_and_drops_a_plain_one() {
         let doc = "/**\n * Kept.\n */\nfn f() {}\n";
         assert_eq!(strip(doc, Language::Rust), doc);
-        assert_eq!(strip("/*\n plain\n*/\nfn f() {}\n", Language::Rust), "fn f() {}\n");
+        assert_eq!(
+            strip("/*\n plain\n*/\nfn f() {}\n", Language::Rust),
+            "fn f() {}\n"
+        );
     }
 
     #[test]
@@ -192,7 +199,10 @@ mod tests {
     #[test]
     fn strips_a_comment_that_follows_a_string_containing_slashes() {
         let src = "let url = \"https://example.com\"; // drop me\n";
-        assert_eq!(strip(src, Language::Rust), "let url = \"https://example.com\";\n");
+        assert_eq!(
+            strip(src, Language::Rust),
+            "let url = \"https://example.com\";\n"
+        );
     }
 
     #[test]
@@ -218,7 +228,10 @@ mod tests {
     #[test]
     fn python_shebang_survives_on_the_first_line_only() {
         let src = "#!/usr/bin/env python3\nx = 1\n#!not a shebang\n";
-        assert_eq!(strip(src, Language::Python), "#!/usr/bin/env python3\nx = 1\n");
+        assert_eq!(
+            strip(src, Language::Python),
+            "#!/usr/bin/env python3\nx = 1\n"
+        );
     }
 
     #[test]

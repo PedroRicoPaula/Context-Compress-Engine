@@ -17,7 +17,6 @@ pub mod codes {
     pub const INVALID_REQUEST: i32 = -32600;
     pub const METHOD_NOT_FOUND: i32 = -32601;
     pub const INVALID_PARAMS: i32 = -32602;
-    pub const INTERNAL_ERROR: i32 = -32603;
 }
 
 /// An inbound message. `id` absent means it is a notification: per JSON-RPC 2.0
@@ -58,7 +57,12 @@ impl Response {
     /// Successful reply. `id` is echoed verbatim, including a null id.
     #[must_use]
     pub fn success(id: Value, result: Value) -> Self {
-        Self { jsonrpc: JSONRPC, id, result: Some(result), error: None }
+        Self {
+            jsonrpc: JSONRPC,
+            id,
+            result: Some(result),
+            error: None,
+        }
     }
 
     /// Failure reply. `message` must be a category, never a raw OS error —
@@ -69,7 +73,10 @@ impl Response {
             jsonrpc: JSONRPC,
             id,
             result: None,
-            error: Some(ErrorObject { code, message: message.into() }),
+            error: Some(ErrorObject {
+                code,
+                message: message.into(),
+            }),
         }
     }
 }
@@ -102,16 +109,16 @@ mod tests {
 
     #[test]
     fn request_with_id_is_not_a_notification() {
-        let req: Request =
-            serde_json::from_str(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#).expect("valid json");
+        let req: Request = serde_json::from_str(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#)
+            .expect("valid json");
         assert!(!req.is_notification());
     }
 
     #[test]
     fn id_zero_is_still_a_real_id() {
         // Guards against a truthiness-style bug: id 0 must not read as absent.
-        let req: Request =
-            serde_json::from_str(r#"{"jsonrpc":"2.0","id":0,"method":"ping"}"#).expect("valid json");
+        let req: Request = serde_json::from_str(r#"{"jsonrpc":"2.0","id":0,"method":"ping"}"#)
+            .expect("valid json");
         assert!(!req.is_notification());
     }
 
@@ -126,9 +133,12 @@ mod tests {
 
     #[test]
     fn failure_omits_the_result_field() {
-        let wire =
-            serde_json::to_string(&Response::failure(json!(null), codes::PARSE_ERROR, "parse error"))
-                .expect("serializable");
+        let wire = serde_json::to_string(&Response::failure(
+            json!(null),
+            codes::PARSE_ERROR,
+            "parse error",
+        ))
+        .expect("serializable");
         assert!(wire.contains(r#""code":-32700"#), "{wire}");
         assert!(!wire.contains(r#""result""#), "{wire}");
     }

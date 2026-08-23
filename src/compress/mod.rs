@@ -73,7 +73,11 @@ pub fn compress_str(source: &str, language: Language, outline_threshold: usize) 
         body = whitespace::collapse(&signatures::outline(&body, language));
     }
 
-    let mut text = imports::render(&split.imports);
+    // Module docs and inner attributes must stay above the hoisted imports,
+    // or the output is not valid source any more.
+    let (preamble, body) = imports::split_preamble(&body);
+    let mut text = preamble;
+    text.push_str(&imports::render(&split.imports));
     text.push_str(&body);
 
     Report {
@@ -97,7 +101,11 @@ pub fn compress_file(
 ) -> Result<Report, GuardError> {
     let path = guard::resolve(requested, root)?;
     let source = guard::read_text(&path)?;
-    Ok(compress_str(&source, Language::from_path(&path), outline_threshold))
+    Ok(compress_str(
+        &source,
+        Language::from_path(&path),
+        outline_threshold,
+    ))
 }
 
 #[cfg(test)]
@@ -123,15 +131,39 @@ use std::fmt;
         let report = compress_str(RUST_SAMPLE, Language::Rust, OUTLINE_THRESHOLD_BYTES);
         assert!(report.text.contains("use std::fmt;"), "{}", report.text);
         assert!(report.text.contains("/// Public API."), "{}", report.text);
-        assert!(report.text.contains("pub fn add(a: i32, b: i32) -> i32 {"), "{}", report.text);
+        assert!(
+            report.text.contains("pub fn add(a: i32, b: i32) -> i32 {"),
+            "{}",
+            report.text
+        );
         assert!(!report.text.contains("internal note"), "{}", report.text);
         assert!(!report.text.contains("adds them"), "{}", report.text);
     }
 
     #[test]
+    fn module_docs_stay_above_the_hoisted_imports() {
+        // Regression: hoisting once pushed `//!` below the `use` lines, which
+        // makes the output fail to compile.
+        let source = "//! Module doc.\nuse std::fmt;\nfn f() {}\n";
+        let report = compress_str(source, Language::Rust, OUTLINE_THRESHOLD_BYTES);
+        let doc_at = report.text.find("//! Module doc.").expect("doc kept");
+        let use_at = report.text.find("use std::fmt;").expect("import kept");
+        assert!(
+            doc_at < use_at,
+            "doc must precede imports:\n{}",
+            report.text
+        );
+    }
+
+    #[test]
     fn duplicate_imports_appear_once() {
         let report = compress_str(RUST_SAMPLE, Language::Rust, OUTLINE_THRESHOLD_BYTES);
-        assert_eq!(report.text.matches("use std::fmt;").count(), 1, "{}", report.text);
+        assert_eq!(
+            report.text.matches("use std::fmt;").count(),
+            1,
+            "{}",
+            report.text
+        );
     }
 
     #[test]
@@ -175,8 +207,12 @@ use std::fmt;
     #[test]
     fn compressing_a_missing_file_reports_a_guard_error() {
         let root = std::env::temp_dir();
-        let error = compress_file("definitely-not-here-9f2a.rs", &root, OUTLINE_THRESHOLD_BYTES)
-            .expect_err("missing file must fail");
+        let error = compress_file(
+            "definitely-not-here-9f2a.rs",
+            &root,
+            OUTLINE_THRESHOLD_BYTES,
+        )
+        .expect_err("missing file must fail");
         assert_eq!(error, GuardError::NotFound);
     }
 }

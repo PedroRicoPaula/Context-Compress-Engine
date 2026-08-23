@@ -49,7 +49,10 @@ impl Language {
     /// Whether `/* */` block comments exist in this language.
     #[must_use]
     pub const fn has_block_comments(self) -> bool {
-        matches!(self, Self::Rust | Self::JavaScript | Self::TypeScript | Self::Go)
+        matches!(
+            self,
+            Self::Rust | Self::JavaScript | Self::TypeScript | Self::Go
+        )
     }
 
     /// Line prefixes that denote an import/include statement.
@@ -69,15 +72,41 @@ impl Language {
     pub const fn signature_prefixes(self) -> &'static [&'static str] {
         match self {
             Self::Rust => &[
-                "fn ", "pub fn ", "async fn ", "pub async fn ", "struct ", "pub struct ", "enum ",
-                "pub enum ", "trait ", "pub trait ", "impl ", "type ", "pub type ", "const ",
-                "pub const ", "static ", "pub static ", "macro_rules! ", "mod ", "pub mod ",
+                "fn ",
+                "pub fn ",
+                "async fn ",
+                "pub async fn ",
+                "struct ",
+                "pub struct ",
+                "enum ",
+                "pub enum ",
+                "trait ",
+                "pub trait ",
+                "impl ",
+                "type ",
+                "pub type ",
+                "const ",
+                "pub const ",
+                "static ",
+                "pub static ",
+                "macro_rules! ",
+                "mod ",
+                "pub mod ",
             ],
             Self::Python => &["def ", "async def ", "class ", "@"],
             Self::JavaScript | Self::TypeScript => &[
-                "function ", "async function ", "class ", "export function ",
-                "export async function ", "export class ", "export const ", "export default ",
-                "interface ", "export interface ", "type ", "export type ",
+                "function ",
+                "async function ",
+                "class ",
+                "export function ",
+                "export async function ",
+                "export class ",
+                "export const ",
+                "export default ",
+                "interface ",
+                "export interface ",
+                "type ",
+                "export type ",
             ],
             Self::Go => &["func ", "type ", "package "],
             Self::Other => &[],
@@ -92,10 +121,22 @@ mod tests {
 
     #[test]
     fn detects_languages_by_extension() {
-        assert_eq!(Language::from_path(Path::new("a/b/main.rs")), Language::Rust);
-        assert_eq!(Language::from_path(Path::new("script.py")), Language::Python);
-        assert_eq!(Language::from_path(Path::new("app.tsx")), Language::TypeScript);
-        assert_eq!(Language::from_path(Path::new("mod.mjs")), Language::JavaScript);
+        assert_eq!(
+            Language::from_path(Path::new("a/b/main.rs")),
+            Language::Rust
+        );
+        assert_eq!(
+            Language::from_path(Path::new("script.py")),
+            Language::Python
+        );
+        assert_eq!(
+            Language::from_path(Path::new("app.tsx")),
+            Language::TypeScript
+        );
+        assert_eq!(
+            Language::from_path(Path::new("mod.mjs")),
+            Language::JavaScript
+        );
         assert_eq!(Language::from_path(Path::new("srv.go")), Language::Go);
     }
 
@@ -103,13 +144,19 @@ mod tests {
     fn unknown_and_missing_extensions_fall_back_to_other() {
         assert_eq!(Language::from_path(Path::new("notes.txt")), Language::Other);
         assert_eq!(Language::from_path(Path::new("Makefile")), Language::Other);
-        assert_eq!(Language::from_path(Path::new(".gitignore")), Language::Other);
+        assert_eq!(
+            Language::from_path(Path::new(".gitignore")),
+            Language::Other
+        );
     }
 
     #[test]
     fn extension_matching_is_case_sensitive_and_does_not_match_substrings() {
         // "rust.rs.bak" must not be treated as Rust.
-        assert_eq!(Language::from_path(Path::new("rust.rs.bak")), Language::Other);
+        assert_eq!(
+            Language::from_path(Path::new("rust.rs.bak")),
+            Language::Other
+        );
     }
 
     #[test]

@@ -108,7 +108,9 @@ mod tests {
     #[tokio::test]
     async fn writes_exactly_one_newline_terminated_line() {
         let mut sink: Vec<u8> = Vec::new();
-        write_message(&mut sink, &json!({"ok": true})).await.expect("write");
+        write_message(&mut sink, &json!({"ok": true}))
+            .await
+            .expect("write");
         let text = String::from_utf8(sink).expect("utf8");
         assert_eq!(text, "{\"ok\":true}\n");
     }
@@ -117,7 +119,9 @@ mod tests {
     async fn written_payload_never_contains_a_raw_newline() {
         // A newline inside the payload would split one message into two on the wire.
         let mut sink: Vec<u8> = Vec::new();
-        write_message(&mut sink, &json!({"text": "line1\nline2"})).await.expect("write");
+        write_message(&mut sink, &json!({"text": "line1\nline2"}))
+            .await
+            .expect("write");
         let text = String::from_utf8(sink).expect("utf8");
         assert_eq!(text.matches('\n').count(), 1, "{text}");
     }

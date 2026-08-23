@@ -17,11 +17,15 @@ fn indent_width(line: &str) -> usize {
 }
 
 fn is_declaration(trimmed: &str, lang: Language) -> bool {
-    lang.signature_prefixes().iter().any(|prefix| trimmed.starts_with(prefix))
+    lang.signature_prefixes()
+        .iter()
+        .any(|prefix| trimmed.starts_with(prefix))
 }
 
 fn is_doc(trimmed: &str, lang: Language) -> bool {
-    lang.doc_prefixes().iter().any(|prefix| trimmed.starts_with(prefix))
+    lang.doc_prefixes()
+        .iter()
+        .any(|prefix| trimmed.starts_with(prefix))
         || trimmed.starts_with("/**")
         || trimmed.starts_with('*')
 }
@@ -146,7 +150,10 @@ mod tests {
 
     #[test]
     fn a_file_of_only_bodies_still_reports_the_elision() {
-        assert_eq!(outline("    a();\n    b();\n", Language::Rust), "    // ...\n");
+        assert_eq!(
+            outline("    a();\n    b();\n", Language::Rust),
+            "    // ...\n"
+        );
     }
 
     #[test]
