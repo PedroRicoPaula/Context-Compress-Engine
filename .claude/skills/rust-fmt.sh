@@ -4,6 +4,15 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 2
 
+# The toolchain lives in ~/.cargo/bin, which non-interactive shells do not pick
+# up from ~/.zshenv. Put it on PATH ourselves rather than depending on the caller.
+[ -d "$HOME/.cargo/bin" ] && PATH="$HOME/.cargo/bin:$PATH"
+
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "FAIL: cargo not found. Install it: see docs/ENVIRONMENT.md"
+  exit 127
+fi
+
 if [ "${1:-}" = "--check" ]; then
   cargo fmt -- --check --files-with-diff >/dev/null 2>&1 && { echo "OK fmt"; exit 0; }
   cargo fmt -- --check -l 2>/dev/null
