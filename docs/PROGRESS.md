@@ -22,7 +22,8 @@ source "$HOME/.cargo/env"
 ./.claude/skills/rust-check.sh
 ```
 
-Expect first-compile errors; they have not been ironed out against a real compiler.
+Expect first-compile errors; they have not been ironed out against a real
+compiler. Log the ones that teach something in `ERRORS.md`.
 
 ## Milestones
 

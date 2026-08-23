@@ -12,6 +12,8 @@ the task at hand. Do not load all of `docs/` into context by default.
 | [docs/BACKLOG.md](docs/BACKLOG.md) | Picking up new work, or logging tech debt |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Starting a session — what is done, what is in flight |
 | [docs/SECURITY.md](docs/SECURITY.md) | Touching file I/O, paths, subprocess, or network |
+| [docs/ERRORS.md](docs/ERRORS.md) | **Read before the first compile of a session** — mistakes already made, and the Rust rule each one taught |
+| [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | Toolchain state, 8GB RAM / 85%-full disk limits, install and cleanup commands |
 
 ## Skills (`.claude/skills/`)
 
@@ -53,3 +55,5 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
 4. Every heuristic gets an inline `#[cfg(test)] mod tests` with edge cases.
 5. Commits: Conventional Commits, small and atomic. One logical change each.
 6. Never log file *contents* to stderr — see [docs/SECURITY.md](docs/SECURITY.md).
+7. Fixed a real mistake? Add it to [docs/ERRORS.md](docs/ERRORS.md) — but only if
+   it taught a language rule or happened twice. Everything else is churn.
