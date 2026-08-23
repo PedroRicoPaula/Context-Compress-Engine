@@ -24,15 +24,17 @@ its caches grow silently. See "Disk hygiene" below.
 
 ## Toolchain status
 
-**No Rust toolchain installed** as of the date above — `cargo`, `rustc`,
-`rustup` all absent, `~/.cargo` and `~/.rustup` do not exist, no shell rc file
-mentions them, and Homebrew has no rust formula. Nothing in `src/` has ever
-been compiled or run.
+**Installed 2026-08-23**: rustc / cargo 1.98.0, rustfmt 1.9.0, clippy 0.1.98,
+target `aarch64-apple-darwin`, stable channel. Footprint: `~/.rustup` 1.3 GB,
+`~/.cargo` 11 MB. Free disk after install: 30 GB.
 
-Verified clean, so a rustup install cannot collide with anything:
-`cargo`, `rustc`, `rustup`, `rustfmt`, `clippy` are all unused command names.
+`~/.zshenv` contains one added line, `. "$HOME/.cargo/env"`. Non-interactive
+shells do not read it, so the scripts in `.claude/skills/` put `~/.cargo/bin`
+on `PATH` themselves — see `ERRORS.md`.
 
-To install:
+Release build: 427 KB binary, ~10 s from clean.
+
+To reinstall on a fresh machine:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh

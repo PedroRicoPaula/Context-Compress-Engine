@@ -1,5 +1,26 @@
 # Backlog
 
+## Measured V1 reality (2026-08-23)
+
+First real run against this repo's own files:
+
+| Input | Result |
+|---|---|
+| Small, doc-heavy, rustfmt'd source (1-9 KB) | 2-8% saved |
+| Non-code (`.md`, `.toml`) | 0% — whitespace pass only |
+| 60 KB file, outline mode | **66% saved** |
+
+The cheap passes barely pay on code that is already clean, because they remove
+inline comments and stray whitespace and such files have neither. Nearly all of
+V1's value is in outline mode. Two consequences worth acting on:
+
+- [ ] `OUTLINE_THRESHOLD_BYTES` (24 KB) is a guess and is probably too high.
+      Make it a tool argument before tuning it blind.
+- [ ] Measure against a foreign codebase, not our own. Our files are unusually
+      doc-heavy and unusually well formatted — the worst possible benchmark.
+- [ ] Byte ratio flatters outline mode and punishes doc retention. Token
+      counting would tell the truth.
+
 ## V2 — relevance
 
 - [ ] Use `taskDescription` (currently accepted, ignored) to rank/drop symbols.

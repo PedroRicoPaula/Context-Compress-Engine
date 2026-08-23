@@ -19,9 +19,11 @@ stdin (JSON-RPC 2.0, line-delimited)
 +-------------------+
    |  ToolCall { name, arguments: serde_json::Value }
    v
-+-------------------+   main.rs is the ONLY place both sides are named.
-| main.rs (wiring)  |   Deserializes args -> calls compress:: -> serializes.
-+-------------------+
++-------------------+   The ONLY place both sides are named.
+| main.rs + tool.rs |   main.rs  - event loop, dispatch, notification rules
+|     (wiring)      |   tool.rs  - compress_file: schema, execution, rendering
++-------------------+   Split when main.rs hit the 300-line cap; the boundary
+                        rule is unchanged, the wiring layer is now two files.
    |  &str + CompressOptions
    v
 +-------------------+   knows: text and code. knows NOTHING about JSON-RPC.
@@ -55,7 +57,9 @@ starting point.
 1. **Guard** — resolve path, reject traversal/symlink escape, size cap. `SECURITY.md`.
 2. **Detect** — extension → `Language`. Unknown → generic text path.
 3. **Reduce** — ordered passes, each `&str -> String`, each independently testable:
-   comments → imports → signatures → whitespace.
+   comments → imports → whitespace → (outline, only above the threshold).
+   The hoisted imports are re-emitted *below* the file preamble (`//!`, `#![`),
+   which is only legal at the top of a file.
 4. **Report** — return text + `{ original_bytes, compressed_bytes, ratio }`.
 
 `taskDescription` is accepted and stored but **not yet used**. It is the hook

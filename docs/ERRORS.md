@@ -143,3 +143,112 @@ and `'` not being treated as a delimiter), each pinned by an `#[ignore]`d test.
 **Rule** A known limitation is worth an `#[ignore]`d test, not just a prose
 bullet. The test lives next to the code and starts passing when the gap closes;
 a bullet in a file rots quietly.
+
+---
+
+## 2026-08-23 — A wrapper script hid the error it was written to report
+
+**Symptom** `./.claude/skills/rust-check.sh` printed `FAIL check (exit 127)`
+and nothing else. Exit 127 means "command not found", but the script said so
+nowhere.
+
+**Cause** Two mistakes stacked. `cargo` was not on `PATH` (non-interactive
+shells do not read `~/.zshenv`), and the script's `2>/dev/null` — added to keep
+compiler noise out of the context — swallowed the `command not found` message
+that would have explained it.
+
+**Fix** Every cargo wrapper now puts `~/.cargo/bin` on `PATH` itself, and
+checks `command -v cargo` up front with an explicit message.
+
+**Rule** A tool that filters output must never filter away the reason it
+failed. Silence the noise, never the diagnosis.
+
+---
+
+## 2026-08-23 — E0618: a variable shadowed the function it was calling
+
+**Symptom** `error[E0618]: expected function, found imports::Split`.
+
+**Cause** In a test: `let split = split(...)` bound a *variable* named `split`,
+so the next `split(...)` call resolved to the variable, not the function.
+
+**Fix** Named the bindings `rust` and `python` after what they hold.
+
+**Rule** Rust allows **shadowing** — reusing a name for a new binding — and it
+is genuinely useful (`let x = x.trim();`). But a binding shadows *everything*
+with that name in scope, functions included. Do not name a variable after the
+function that produced it.
+
+---
+
+## 2026-08-23 — A dead-code warning was hiding a protocol bug
+
+**Symptom** `warning: method is_notification is never used`.
+
+**Cause** The method was written and tested, then never wired in. The reason it
+was never missed: `handle()` special-cased the one notification we expected
+(`initialized`) instead of handling notifications as a class. Any *other*
+notification — `{"method":"ping"}` with no id — got an answer with a null id,
+which JSON-RPC 2.0 forbids.
+
+**Fix** `handle()` now returns early for any notification, and a test asserts
+it across four different methods.
+
+**Rule** Treat dead-code warnings as questions, not noise. "Why did I write
+this and never need it?" is sometimes answered by "because the thing that
+should have used it is wrong".
+
+---
+
+## 2026-08-23 — A security test that never tested the security
+
+**Symptom** `rejects_traversal_out_of_the_root` expected `OutsideRoot`, got
+`NotFound`.
+
+**Cause** The test asked for `nested/../../../etc/hosts`. Canonicalization
+resolved that to a path that does not exist, so it failed at the *existence*
+check and never reached the root-containment check. The traversal was blocked
+— by the wrong guard. The test proved nothing about the guard it named.
+
+**Fix** Rewrote it around a file that genuinely exists outside the root, so
+only the root check can stop it. Kept the old case as a second, separately
+named test documenting the `NotFound` path.
+
+**Rule** A passing security test can still be testing nothing. Make sure the
+check under test is the *only* thing standing between the input and the
+resource — otherwise an unrelated guard can pass the test for you.
+
+---
+
+## 2026-08-23 — The compressor emitted Rust that would not compile
+
+**Symptom** Compressing `guard.rs` put the `use` lines above the `//!` module
+doc comment. In Rust `//!` and `#![...]` are legal only at the top of a file,
+so the output was invalid source.
+
+**Cause** Import hoisting moved every `use` to position zero without asking
+what was already there.
+
+**Fix** `imports::split_preamble` separates the leading run of `//!` / `#![` /
+blank lines and re-emits it above the hoisted imports. Regression test asserts
+the doc comment's index precedes the import's.
+
+**Rule** Found by piping a real file through the built binary — no unit test
+caught it, because every unit test used a fixture without a preamble. Tests
+prove the cases you thought of; running the real thing on real input finds the
+ones you did not.
+
+---
+
+## 2026-08-23 — My own 300-line rule caught me
+
+**Symptom** `loc-guard.sh` failed: `src/main.rs 319`.
+
+**Cause** Growth by a hundred small additions, none of which felt like the one
+that crossed the line.
+
+**Fix** Split the `compress_file` tool — its schema, execution, and output
+rendering — into `src/tool.rs`, leaving `main.rs` with the event loop.
+
+**Rule** The limit only works if something mechanical enforces it. Left to
+judgment, no single edit ever looks like the problem.
