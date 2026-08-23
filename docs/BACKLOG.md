@@ -18,9 +18,12 @@
 
 - [ ] tree-sitter swap for `signatures.rs` — see ADR-004. Blocked on collecting
       real failing cases.
-- [ ] Known V1 wrongness: a `//` inside a string literal is treated as a comment.
-      Test exists and is `#[ignore]`d, documenting the limit.
+- [ ] Rust raw strings (`r#"a // b"#`) still confuse the comment scanner.
+      `#[ignore]`d test in `comments.rs` documents it.
+- [ ] Rust `'` is not treated as a string delimiter (lifetimes would break the
+      scan), so a char literal containing a quote — `'"'` — misleads it.
 - [ ] Multi-line function signatures are captured by first line only.
+      `#[ignore]`d test in `signatures.rs` documents it.
 - [ ] Languages: only Rust/Python/JS/TS have real rules. Everything else is the
       generic whitespace path.
 
