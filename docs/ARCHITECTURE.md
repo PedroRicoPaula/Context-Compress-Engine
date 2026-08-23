@@ -1,0 +1,71 @@
+# Architecture
+
+## Constraint that drives every decision
+
+8GB RAM Mac, shared with a local Ollama model. The compressor is the *guest*,
+not the host. Target: < 50MB RSS idle, stream instead of buffering whole files,
+never hold two copies of a source file in memory.
+
+## Layers
+
+```
+stdin (JSON-RPC 2.0, line-delimited)
+   |
+   v
++-------------------+   knows: protocol. knows NOTHING about compression.
+| mcp/              |   transport.rs  - read lines, write lines, flush
+|                   |   protocol.rs   - Request/Response/Error types (serde)
+|                   |   dispatch.rs   - method name -> handler fn
++-------------------+
+   |  ToolCall { name, arguments: serde_json::Value }
+   v
++-------------------+   main.rs is the ONLY place both sides are named.
+| main.rs (wiring)  |   Deserializes args -> calls compress:: -> serializes.
++-------------------+
+   |  &str + CompressOptions
+   v
++-------------------+   knows: text and code. knows NOTHING about JSON-RPC.
+| compress/         |   whitespace.rs - blank line + trailing ws collapse
+|                   |   comments.rs   - strip inline, KEEP doc comments
+|                   |   imports.rs    - hoist + group import lines
+|                   |   signatures.rs - fn/struct/trait/impl outlining
+|                   |   lang.rs       - extension -> Language enum
++-------------------+
+   |
+   v
+CompressionResult { text, stats }
+```
+
+## The decoupling rule
+
+`src/mcp/` must not `use crate::compress::*`, and `src/compress/` must not
+`use crate::mcp::*`. They exchange nothing but `&str` and plain data via
+`main.rs`. Consequence: the compressor is usable as a plain library, testable
+without a protocol, and the protocol layer is swappable (HTTP, CLI) without
+touching a single heuristic.
+
+Enforced by review, not by the compiler (single crate). If it is ever violated,
+split into a workspace with two crates — that is the escape hatch, not the
+starting point.
+
+## Pipeline
+
+`compress_file(filePath, taskDescription)`:
+
+1. **Guard** — resolve path, reject traversal/symlink escape, size cap. `SECURITY.md`.
+2. **Detect** — extension → `Language`. Unknown → generic text path.
+3. **Reduce** — ordered passes, each `&str -> String`, each independently testable:
+   comments → imports → signatures → whitespace.
+4. **Report** — return text + `{ original_bytes, compressed_bytes, ratio }`.
+
+`taskDescription` is accepted and stored but **not yet used**. It is the hook
+for V2 (relevance ranking) and V3 (Ollama semantic scoring). Wiring it now
+would be a guess about a scoring function that does not exist.
+
+## Deliberately absent
+
+- No AI. V1 is pure heuristics — deterministic, testable, zero RAM cost.
+- No tree-sitter yet. V1 uses line heuristics; tree-sitter grammars are ~2-5MB
+  each of binary bloat and a C toolchain dependency. Earn it with a failing
+  case first. See ADR-004 in `DECISIONS.md`.
+- No caching layer, no config file, no plugin system.
