@@ -30,8 +30,10 @@ stdin (JSON-RPC 2.0, line-delimited)
 | compress/         |   whitespace.rs - blank line + trailing ws collapse
 |                   |   comments.rs   - strip inline, KEEP doc comments
 |                   |   imports.rs    - hoist + group import lines
-|                   |   signatures.rs - fn/struct/trait/impl outlining
-|                   |   lang.rs       - extension -> Language enum
+|                   |   signatures.rs  - the outline state machine
+|                   |   declaration.rs - what declares, and how far it reaches
+|                   |   docstring.rs   - Python docstring summary extraction
+|                   |   lang.rs        - extension -> Language enum
 +-------------------+
    |
    v

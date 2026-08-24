@@ -9,6 +9,7 @@ First real run against this repo's own files:
 | Small, doc-heavy, rustfmt'd source (1-9 KB) | 2-8% saved |
 | Non-code (`.md`, `.toml`) | 0% — whitespace pass only |
 | 60 KB file, outline mode | **66% saved** |
+| 441 KB scipy module, outline mode | **93.5% saved**, all 138 functions and 88 docstring summaries kept |
 
 The cheap passes barely pay on code that is already clean, because they remove
 inline comments and stray whitespace and such files have neither. Nearly all of
@@ -36,6 +37,12 @@ V1's value is in outline mode. Two consequences worth acting on:
 - [ ] Semantic dedup of near-identical blocks.
 
 ## Parsing debt
+
+- [ ] `MAX_CONTINUATION_LINES` (24) exists because parenthesis counting is
+      naive about string literals. A real lexer removes the cap. Another case
+      for ADR-004.
+- [ ] Only the docstring *summary* survives outline mode (ADR-007). If an agent
+      ever needs parameter docs, that is a tool argument, not a default.
 
 - [ ] tree-sitter swap for `signatures.rs` — see ADR-004. Blocked on collecting
       real failing cases.

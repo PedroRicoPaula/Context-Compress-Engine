@@ -252,3 +252,60 @@ rendering — into `src/tool.rs`, leaving `main.rs` with the event loop.
 
 **Rule** The limit only works if something mechanical enforces it. Left to
 judgment, no single edit ever looks like the problem.
+
+---
+
+## 2026-08-24 — A metric that measured the wrong unit
+
+**Symptom** After fixing multi-line signatures, the measurement script still
+reported "15 truncated signatures", unchanged — while the output visibly
+contained the full two-line signature.
+
+**Cause** The script counted parentheses **per line**. The first line of a
+two-line signature is legitimately unbalanced; the second closes it. The same
+mistake had already appeared an hour earlier in a unit test
+(`every_kept_signature_has_balanced_parentheses`), which failed on correct code
+for the identical reason.
+
+**Fix** Both now accumulate depth across the block, and fail only if a
+declaration is still open when the next one arrives.
+
+**Rule** Made the same error twice in one session, in a test and then in a
+metric — which is exactly the "happened twice" bar this file exists for. When
+a fix appears to change nothing, suspect the measurement before the fix. And
+when the unit of the thing (a signature) is bigger than the unit being counted
+(a line), the count is wrong before it is even run.
+
+---
+
+## 2026-08-24 — String-replacement edits silently did nothing
+
+**Symptom** A batch of edits to `signatures.rs` reported success but the
+compiler still failed on the old code; the "removed" helpers were still there.
+
+**Cause** `rustfmt` had run between writing the file and editing it, so exact
+match strings no longer matched the reformatted source. Python's `str.replace`
+returns the original string when nothing matches — it does not report failure.
+
+**Fix** Re-read the file, anchored the edits on stable markers instead of
+formatted bodies, and printed whether each pattern actually matched.
+
+**Rule** Any edit-by-string-match must assert that it matched. A silent no-op
+is worse than an error: it leaves you debugging a change you believe you made.
+
+---
+
+## 2026-08-24 — The elision marker was a syntax error in Python
+
+**Symptom** Python output contained `    // ...` — 163 times.
+
+**Cause** `ELISION` was a hard-coded constant. `//` is a comment in Rust and
+JS, and a syntax error in Python.
+
+**Fix** The marker now uses `Language::line_comment()`.
+
+**Rule** Third instance of one pattern this project keeps hitting: **output
+must be valid in the language it claims to be**. First the module doc pushed
+below imports, then truncated signatures, then an unterminated docstring, now
+a foreign comment marker. Any constant holding syntax is a language-dependent
+value wearing a constant's clothes.

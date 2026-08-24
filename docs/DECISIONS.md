@@ -85,3 +85,48 @@ in byte terms.
 **Consequence.** Docstrings carry intent an agent cannot re-derive from
 signatures; inline comments mostly restate the line below them. This is the
 "lossless" line we drew — recorded here because it is a judgment call, not a fact.
+
+---
+
+## ADR-007: Outline keeps the docstring summary, not the docstring
+
+**Context.** ADR-006 says documentation survives compression. Outline mode
+violated it for Python: a docstring is a string literal, not a comment, so the
+declaration rules never saw one. On scipy's `_stats_py.py` all 88 docstrings
+were dropped while 164 of their bullet lines survived as orphans.
+
+Keeping them whole was the obvious fix and the wrong one — scipy's docstrings
+carry full parameter tables and examples, and preserving them takes the output
+from 28 KB to an estimated 150 KB, undoing most of the compression.
+
+**Decision.** Keep the **summary line only**, re-emitted as a closed one-line
+docstring. PEP 257 defines that line as a complete sentence describing the
+function, which is exactly the granularity an outline wants.
+
+**Consequence.** 88 of 88 docstrings now survive in summary form for about
+1 KB — 93.7% compression becomes 93.5%. Parameter descriptions are gone, so
+outline mode still cannot answer "what does this argument do"; it answers
+"what is this function for", which is what an outline is asked. Emitting the
+summary *closed* is not cosmetic: an unterminated `"""` would make the whole
+output unparseable.
+
+---
+
+## ADR-008: Declarations are followed to balanced parentheses
+
+**Context.** Outline mode decided line by line. A signature spanning two lines
+kept only the first, so `def ttest_ind(a, b, *, axis=0, equal_var=True,` was
+emitted with 6 of its 9 parameters and no closing paren.
+
+**Decision.** On a declaration whose parentheses do not balance, keep
+consuming lines until they do — capped at `MAX_CONTINUATION_LINES` (24).
+
+**Consequence.** 15 truncated signatures and 53 truncated decorators went to
+zero on the scipy file. The cap exists because the counter is naive about
+parentheses inside string literals; when it misfires it absorbs at most 24
+lines instead of the rest of the file. A real lexer removes the cap — that is
+ADR-004's tree-sitter path, and this is another case building toward it.
+
+**The general rule, worth stating once:** partial output that *looks* complete
+is worse than no output. A truncated signature is trusted and acted on. Every
+pass must either emit something whole or emit a marker saying it did not.

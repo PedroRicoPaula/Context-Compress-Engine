@@ -19,7 +19,7 @@ OK check        rustc 1.98.0, zero warnings
 OK clippy       pedantic, unwrap/expect/panic/indexing denied
 OK fmt
 OK loc          all modules <= 300 lines
-OK tests        103 passed, 0 failed, 2 ignored (documented V1 limits)
+OK tests        128 passed, 0 failed, 1 ignored (documented V1 limit)
 release         427 KB binary, ~10 s from clean
 ```
 
@@ -27,9 +27,13 @@ End-to-end over stdio against the release binary: `initialize`, `tools/list`,
 and `tools/call` all answer correctly; all five refusal paths (outside root,
 missing, deny-listed, non-regular file, traversal) return the right category.
 
-Seven defects were found and fixed in the process — see `ERRORS.md`. One of
-them, invalid output from import hoisting, was found only by running the real
-binary on a real file.
+Eleven defects found and fixed — see `ERRORS.md`. Four of them came from
+compressing a real 441 KB scipy module rather than a fixture: truncated
+signatures, dropped docstrings, orphan bullet lines, and a `//` elision marker
+that is a syntax error in Python. None were caught by any unit test.
+
+Result on that file: 93.5% compressed, all 138 functions and 9 classes kept,
+all 88 docstrings kept as PEP 257 summaries, zero truncated signatures.
 
 ## Milestones
 
