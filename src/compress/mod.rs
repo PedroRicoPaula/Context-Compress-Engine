@@ -8,6 +8,7 @@
 pub mod block;
 pub mod comments;
 pub mod declaration;
+pub mod denylist;
 pub mod docstring;
 pub mod extract;
 pub mod guard;

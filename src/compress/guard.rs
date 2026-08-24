@@ -4,21 +4,11 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use super::denylist::is_denied;
+
 /// Hard ceiling on a file we will read into memory. The whole point of this
 /// project is to coexist with a local model on an 8GB machine.
 pub const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
-
-/// File names and extensions refused even inside the allowed root.
-const DENIED_NAMES: &[&str] = &[
-    ".env",
-    ".netrc",
-    ".npmrc",
-    "id_rsa",
-    "id_ed25519",
-    "credentials",
-    ".htpasswd",
-];
-const DENIED_EXTENSIONS: &[&str] = &["pem", "key", "p12", "pfx", "keystore"];
 
 /// Why a path was refused.
 ///
@@ -54,27 +44,6 @@ impl fmt::Display for GuardError {
 }
 
 impl std::error::Error for GuardError {}
-
-fn is_denied(path: &Path) -> bool {
-    let name_denied = path
-        .file_name()
-        .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|name| DENIED_NAMES.iter().any(|d| name.eq_ignore_ascii_case(d)));
-
-    let ext_denied = path
-        .extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|ext| {
-            DENIED_EXTENSIONS
-                .iter()
-                .any(|d| ext.eq_ignore_ascii_case(d))
-        });
-
-    // `.git/config` holds credentials in some setups; the whole dir is noise anyway.
-    let in_git_dir = path.components().any(|c| c.as_os_str() == ".git");
-
-    name_denied || ext_denied || in_git_dir
-}
 
 /// Validate `requested` against `root` and return the canonical path.
 ///
@@ -237,18 +206,6 @@ mod tests {
         assert_eq!(
             resolve("sub", scratch.root()),
             Err(GuardError::NotARegularFile)
-        );
-    }
-
-    #[test]
-    fn rejects_deny_listed_names_and_extensions() {
-        let scratch = Scratch::new();
-        scratch.write(".env", "SECRET=1");
-        scratch.write("server.pem", "-----BEGIN-----");
-        assert_eq!(resolve(".env", scratch.root()), Err(GuardError::Denied));
-        assert_eq!(
-            resolve("server.pem", scratch.root()),
-            Err(GuardError::Denied)
         );
     }
 

@@ -309,3 +309,32 @@ must be valid in the language it claims to be**. First the module doc pushed
 below imports, then truncated signatures, then an unterminated docstring, now
 a foreign comment marker. Any constant holding syntax is a language-dependent
 value wearing a constant's clothes.
+
+---
+
+## 2026-08-24 — A deny list that blocked the placeholder and passed the secret
+
+**Symptom** `compress_file` returned the full contents of `.env.local`,
+including a live-shaped `sk_live_` key and a database URL with a password,
+while correctly refusing `.env`.
+
+**Cause** `DENIED_NAMES` matched exact file names. It contained `.env`, which
+has a family — `.env.local`, `.env.production`, `.env.development.local`. In
+Next.js, Vite and CRA conventions the committed `.env` is usually a template
+and `.env.local` is the git-ignored file holding real credentials. So the rule
+blocked the *less* sensitive file and passed the *more* sensitive one. The same
+shape left `id_ecdsa` and `id_dsa` readable while `id_rsa` was denied.
+
+**Fix** `src/compress/denylist.rs`: prefix matching for families, exact for
+singletons, case-insensitive throughout. Three regression tests, including one
+asserting the prefix rule does *not* swallow `environment.rs` or `identity.rs`
+— an over-broad deny list is its own bug.
+
+**Rule** A deny list must be judged by what it *misses*, never by what it
+catches. Any entry with naming variants needs a prefix rule, and case-sensitive
+matching is broken by default on macOS and Windows.
+
+**How it was found:** a security audit agent, run against the repository the
+same day it was made public. Six weeks of tests and four documents did not
+catch it. The tests all asserted that `.env` was blocked — none asked what
+*else* should have been.

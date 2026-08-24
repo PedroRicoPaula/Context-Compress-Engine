@@ -23,8 +23,17 @@ is not a trusted caller — treat every tool argument as hostile input.
    Reading `/dev/zero` or a FIFO hangs the server forever.
 4. **Size cap before read.** `MAX_FILE_BYTES` (8MB). `metadata()` then compare.
    Never `read_to_string` an unbounded file — 8GB RAM, shared with a model.
-5. **Deny-list sensitive names** even inside the root: `.env`, `.git/config`,
-   `id_rsa`, `*.pem`, `*.key`, `.aws/credentials`, `.npmrc`, `.netrc`.
+5. **Deny-list sensitive names** even inside the root — `src/compress/denylist.rs`.
+   **Match prefixes, not exact names, for anything with a naming family**, and
+   match case-insensitively. Exact matching held `.env` and missed
+   `.env.local`; in Next.js, Vite and CRA the committed `.env` is usually a
+   placeholder while `.env.local` holds live credentials, so the rule blocked
+   the harmless file and passed the dangerous one. Same gap left `id_ecdsa`
+   readable while `id_rsa` was blocked. Case matters because macOS and Windows
+   default to case-insensitive filesystems: `.ENV.local` opens the same file.
+
+   The list remains **mitigation, not a guarantee** — see "Output handling".
+   Its job is to not be confidently wrong.
 
 ## Output handling
 
