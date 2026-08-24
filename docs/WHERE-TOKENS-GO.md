@@ -1,8 +1,8 @@
 # Where a coding session's tokens actually go
 
-Measured 2026-08-24 against this project's own build session, using
-`bench/session_tokens.py` from the Jarvis repo, which reads the real `usage`
-block Claude Code writes into its transcript. Not estimated.
+Measured 2026-08-24 against this project's own build session, by parsing the
+real `usage` block Claude Code writes into its session transcript. Billed
+figures, not estimates.
 
 This exists because the project had been optimising read-side compression
 without ever checking whether reads are what a session spends.
@@ -85,8 +85,10 @@ This does not invalidate the tool. It bounds it:
 
 ## Method note
 
-`bench/session_tokens.py` lives in the Jarvis repo. It found a real bug in
-itself on first run — it classified commands by their prefix, and nearly every
-command in that project starts `cd "..." &&`, so 94% of reads were filed as
-"other". Worth knowing before trusting its category breakdown; the billed-token
-totals come straight from the transcript and are unaffected.
+The billed-token totals come straight from the transcript's `usage` blocks and
+are exact. The category breakdown is derived by classifying tool calls, which
+is approximate — one early version of that classifier filed 94% of reads as
+"other" because it keyed on a command prefix that most commands happened to
+share. Treat the totals as fact and the split as indicative.
+
+Transcripts live in `~/.claude/projects/<project>/<session>.jsonl`.

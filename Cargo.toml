@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.75"
 description = "Local-first MCP server that compresses source files into high-signal context packs"
 license = "MIT"
-repository = "https://github.com/pedroricopaula/context-compressor-mcp"
+repository = "https://github.com/PedroRicoPaula/Context-Compress-Engine"
 readme = "README.md"
 keywords = ["mcp", "llm", "context", "compression"]
 

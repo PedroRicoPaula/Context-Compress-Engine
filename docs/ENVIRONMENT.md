@@ -1,40 +1,38 @@
 # Environment
 
-Facts about the machine this project is developed on. They are not trivia —
-they are the reason for several decisions in `DECISIONS.md`. Re-verify before
-trusting; hardware facts rot.
+The target environment, and why it shapes the code. These are constraints, not
+trivia — they are the reason for several decisions in `DECISIONS.md`.
 
-*Last verified: 2026-08-23.*
+## Target machine
 
-## Machine
+An 8 GB Apple Silicon Mac, already running a local model via Ollama.
 
-| | |
-|---|---|
-| Platform | macOS (Darwin 25.6.0), Apple Silicon |
-| RAM | **8 GB**, shared with a local Ollama model |
-| Disk | 228 GB total, **31 GB free (85% full)** |
-| Shell | zsh |
+The RAM figure is the hard constraint. This binary is the **guest** on that
+machine — the model is the host. Every dependency, every buffer, every `String`
+clone is weighed against it. See `ARCHITECTURE.md`.
 
-The RAM figure is the hard constraint. This binary is the *guest* on this
-machine — Ollama is the host. Every dependency, every buffer, every `String`
-clone is weighed against that. See `ARCHITECTURE.md`.
+It holds up: **4.4 MB RSS and 30 ms** to compress a 441 KB file, against an
+architecture goal of under 50 MB. Measured with `/usr/bin/time -l`, not
+estimated.
 
-The disk figure matters more than it looks: Rust is not a light install and
-its caches grow silently. See "Disk hygiene" below.
+Nothing here is macOS-specific except the shell snippets. The crate is portable
+Rust with no platform dependencies.
 
 ## Toolchain status
 
-**Installed 2026-08-23**: rustc / cargo 1.98.0, rustfmt 1.9.0, clippy 0.1.98,
-target `aarch64-apple-darwin`, stable channel. Footprint: `~/.rustup` 1.3 GB,
-`~/.cargo` 11 MB. Free disk after install: 30 GB.
+Built and tested against **Rust 1.98.0** (stable). `rust-version` in
+`Cargo.toml` sets the floor at 1.75.
 
-`~/.zshenv` contains one added line, `. "$HOME/.cargo/env"`. Non-interactive
-shells do not read it, so the scripts in `.claude/skills/` put `~/.cargo/bin`
-on `PATH` themselves — see `ERRORS.md`.
+Footprint of the toolchain itself: `~/.rustup` about 1.3 GB, `~/.cargo` about
+11 MB. Not a light install — worth knowing before starting on a full disk.
 
-Release build: 427 KB binary, ~10 s from clean.
+Non-interactive shells do not read `~/.zshenv`, so the scripts in
+`.claude/skills/` put `~/.cargo/bin` on `PATH` themselves — see `ERRORS.md` for
+the bug that taught us.
 
-To reinstall on a fresh machine:
+Release build: **427 KB binary, ~10 s from clean.**
+
+To install the toolchain:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -66,14 +64,16 @@ Expected footprint: rustup + toolchain ~1.5–2 GB, this project's `target/`
 ~300–500 MB after a release build, plus `~/.cargo/registry` growing over time
 with the source of every dependency ever downloaded, across all projects.
 
-Both of these are caches and regenerate on the next build:
+Both are caches and regenerate on the next build:
 
 ```bash
 rm -rf target                    # this project's build output
 rm -rf ~/.cargo/registry/cache   # downloaded crate archives
 ```
 
-At 85% full, check `df -h ~` before a long build session.
+Because of that, install the binary with `cargo install --path .` rather than
+pointing your MCP config at `target/release/` — otherwise cleaning up disk
+breaks the config.
 
 ## Consequences for how we work
 

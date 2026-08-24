@@ -12,8 +12,12 @@ and reports what each one costs and buys. It answers one question:
     below what size is outlining not worth the loss?
 
 Usage:
-    ./bench/threshold.py                      # default corpus
-    ./bench/threshold.py path/to/repo ...     # your own
+    ./bench/threshold.py                      # this repo's own src/
+    ./bench/threshold.py path/to/repo ...     # any corpus you like
+
+Point it at something that is NOT this project. Our own files are unusually
+doc-heavy and unusually well formatted, which makes them the least
+representative benchmark available.
 
 Every file is compressed twice per threshold sweep: once whole, once outlined,
 so the two are compared on identical input rather than across files.
@@ -35,8 +39,9 @@ SKIP_PARTS = {
 }
 MAX_BYTES = 8 * 1024 * 1024
 
-# Sweep. 24576 is the current default, kept so it shows up in the table.
-THRESHOLDS = [2048, 4096, 8192, 16384, 24576, 49152]
+# Keep in step with OUTLINE_THRESHOLD_BYTES in src/compress/mod.rs.
+CURRENT_DEFAULT = 8192
+THRESHOLDS = [2048, 4096, CURRENT_DEFAULT, 16384, 24576, 49152]
 
 
 def find_files(roots: list[Path], per_root: int = 120) -> list[Path]:
@@ -126,12 +131,11 @@ def main() -> int:
         print(f"build first: cargo build --release ({BINARY} missing)", file=sys.stderr)
         return 2
 
+    # Defaults to this repo so the script runs anywhere with no setup. The
+    # numbers in ADR-010 came from a wider corpus — pass your own paths to
+    # reproduce that shape: a large third-party library is the useful case.
     roots = [Path(a).resolve() for a in sys.argv[1:]] or [
-        Path.home() / "Developer/Programação/Context Compression Engine/CCE/src",
-        Path.home() / "Developer/Programação/Jarvis/core",
-        Path.home() / "Developer/Programação/Jarvis/senses",
-        Path.home() / "Developer/Programação/Jarvis/.venv/lib/python3.13/site-packages/scipy/stats",
-        Path.home() / "Developer/Programação/Jarvis/.venv/lib/python3.13/site-packages/matplotlib/axes",
+        Path(__file__).resolve().parent.parent / "src",
     ]
 
     print("Collecting corpus...")
@@ -200,7 +204,7 @@ def main() -> int:
         loss = sum(whole[k]["compressed"] - merged[k]["compressed"]
                    for k in outlined if k in whole)
         per = loss / len(outlined) if outlined else 0
-        marker = "  <- current default" if threshold == 24576 else ""
+        marker = "  <- current default" if threshold == CURRENT_DEFAULT else ""
         print(f"{threshold:>10}{len(outlined):>10}"
               f"{100 * (1 - total_compressed / total_original):>13.1f}%"
               f"{loss / 1024:>10.0f} KB{per / 1024:>12.1f} KB{marker}")
