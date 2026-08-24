@@ -130,3 +130,50 @@ ADR-004's tree-sitter path, and this is another case building toward it.
 **The general rule, worth stating once:** partial output that *looks* complete
 is worse than no output. A truncated signature is trusted and acted on. Every
 pass must either emit something whole or emit a marker saying it did not.
+
+---
+
+## ADR-009: Retrieval before relevance
+
+**Context.** An external review proposed evolving this project into a "Context
+Intelligence" engine, with a six-phase roadmap: V2 task-aware relevance, V3
+AST, V4 Ollama reranking, V5 project-level context packs, V6 retrieval.
+
+The review's central hypothesis is right: an agent does not need a compressed
+copy of everything, it needs the smallest task-relevant representation. But the
+proposed ordering puts the cheapest, most useful piece last.
+
+**Decision.** Implement retrieval (`get_symbol`) as the next step, and leave
+relevance, AST, Ollama, and project packs where they are until there is
+evidence for them.
+
+**Reasoning, in the order it mattered:**
+
+1. **Retrieval removes the problem the other phases try to solve.** V2-V5 are
+   increasingly elaborate ways to guess correctly what the model will need.
+   Retrieval makes guessing cheap: guess wrong, the model asks. That is worth
+   more than a better guess and costs a fraction as much.
+2. **It fixes a defect we measured.** The scipy run showed outline mode is
+   reliable for navigation and useless for use. Retrieval closes exactly that
+   gap, and it closes it without making the outline bigger.
+3. **It is ~250 lines.** No AST, no index, no cache, no model, no embeddings,
+   no invalidation problem.
+4. **The cost baseline forbids the alternatives, for now.** Compression is
+   4.4 MB RSS and 30 ms for a 441 KB file. An Ollama call on this machine costs
+   seconds and gigabytes, competing with the model the tool exists to serve, and
+   trades determinism for a judgment a small model is weak at. Embeddings lose
+   to lexical and structural matching on code, where a symbol called
+   `processPayment` is found by searching for "payment".
+
+**Consequence.** The roadmap is now: retrieval → real use → evidence →
+whatever the evidence justifies. The rejected phases are not wrong, they are
+unevidenced; each returns the moment a concrete failure demands it.
+
+**What would reverse this.** Real use showing the model repeatedly calls
+`get_symbol` three or four times per task, hunting. That is relevance
+selection earning its place with evidence rather than argument.
+
+**Not adopted:** the review also asked for a 25-section design document. A
+project whose thesis is "too much context is the problem" should not answer it
+with 6,000 speculative words about a system that has never been used in anger.
+The decisions live here, where decisions are already looked for.

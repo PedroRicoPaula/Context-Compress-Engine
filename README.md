@@ -66,14 +66,28 @@ it will refuse to read anything outside it (`docs/SECURITY.md`).
 Restart the client, then ask it to compress a file. `stderr` carries a one-line
 startup banner naming the root — check it if paths are being refused.
 
-## The tool
+## The tools
 
-`compress_file`
+**`compress_file`** — reduce a file to a context pack.
 
 | Argument | Type | |
 |---|---|---|
 | `filePath` | string | required. Relative to the server's working directory. |
-| `taskDescription` | string | optional. Accepted and echoed; **not yet used** for ranking (V2). |
+| `taskDescription` | string | optional. Accepted and echoed; **not yet used** for ranking. |
+
+**`get_symbol`** — read one definition back, whole.
+
+| Argument | Type | |
+|---|---|---|
+| `filePath` | string | required. |
+| `symbol` | string | required. Exact name, as it appears in the outline. |
+
+The two are counterparts. Above 24 KB, `compress_file` switches to outline
+mode: signatures and doc summaries, bodies elided. `get_symbol` brings back the
+one body you actually need, with its decorators, doc comment, and line range.
+
+On scipy's `_stats_py.py` (441 KB): the pack is 29 KB, and pulling `ttest_ind`
+back whole adds 13 KB — 9.5% of the file, with nothing lost that mattered.
 
 Refuses: paths outside the root, non-regular files, anything over 8MB, non-UTF-8,
 and deny-listed names (`.env`, `*.pem`, `.git/`, …).

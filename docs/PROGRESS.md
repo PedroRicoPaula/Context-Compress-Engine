@@ -19,7 +19,7 @@ OK check        rustc 1.98.0, zero warnings
 OK clippy       pedantic, unwrap/expect/panic/indexing denied
 OK fmt
 OK loc          all modules <= 300 lines
-OK tests        128 passed, 0 failed, 1 ignored (documented V1 limit)
+OK tests        155 passed, 0 failed, 1 ignored (documented V1 limit)
 release         427 KB binary, ~10 s from clean
 ```
 
@@ -42,6 +42,11 @@ all 88 docstrings kept as PEP 257 summaries, zero truncated signatures.
 - [x] V1 heuristic compressor with inline unit tests
 - [x] First successful `cargo build`
 - [x] Verified end-to-end over stdio
-- [ ] **Verified from a real MCP client (Claude Code / Cursor)** ← next
+- [x] `get_symbol` retrieval — compression is no longer one-way (ADR-009)
+- [ ] **Verified from a real MCP client (Claude Code / Cursor)** ← next, and
+      everything else is gated on what it tells us
 - [ ] Tune the outline threshold against a foreign codebase (see BACKLOG.md)
+
+Measured cost, for reference when weighing anything heavier: **4.4 MB RSS,
+30 ms** to compress a 441 KB file. The architecture goal was < 50 MB.
 - [ ] V2 relevance ranking

@@ -22,7 +22,29 @@ V1's value is in outline mode. Two consequences worth acting on:
 - [ ] Byte ratio flatters outline mode and punishes doc retention. Token
       counting would tell the truth.
 
+## Done
+
+- [x] `get_symbol` retrieval (ADR-009). Was V6 in the proposed roadmap;
+      promoted because it removes the problem the intervening phases solve.
+
+## Retrieval debt
+
+- [ ] First match wins: overloads, re-definitions, and same-named methods on
+      different classes return the first one found.
+- [ ] `impl Trait for Type` is indexed under `Trait`, not `Type`.
+- [ ] No `list_symbols` yet. The outline already is that list, so it only earns
+      its place if real use shows the model asking for names it cannot see.
+
+## Open questions
+
+- [ ] The 300-line module cap counts test code, which is ~60% of most files
+      here. Cap non-test lines instead? Decide with evidence, not preference —
+      the cap has caught two real cases of drift so far.
+
 ## V2 — relevance
+
+**Gated on evidence** (ADR-009): build this when real use shows the model
+calling `get_symbol` repeatedly per task, hunting for the right piece.
 
 - [ ] Use `taskDescription` (currently accepted, ignored) to rank/drop symbols.
 - [ ] `compress_directory` tool — glob + per-file budget, respecting `.gitignore`.

@@ -33,6 +33,8 @@ stdin (JSON-RPC 2.0, line-delimited)
 |                   |   signatures.rs  - the outline state machine
 |                   |   declaration.rs - what declares, and how far it reaches
 |                   |   docstring.rs   - Python docstring summary extraction
+|                   |   extract.rs     - pull one named symbol back out, whole
+|                   |   block.rs       - where a block ends: braces or indent
 |                   |   lang.rs        - extension -> Language enum
 +-------------------+
    |
@@ -51,6 +53,13 @@ touching a single heuristic.
 Enforced by review, not by the compiler (single crate). If it is ever violated,
 split into a workspace with two crates — that is the escape hatch, not the
 starting point.
+
+## Two tools, one boundary
+
+`compress_file` reduces; `get_symbol` restores one piece. They are counterparts,
+not alternatives: outline mode can afford to cut hard *because* the cut is
+reversible. Both enter through the same `guard.rs` validation — a second entry
+point is a second chance to skip the trust boundary.
 
 ## Pipeline
 
