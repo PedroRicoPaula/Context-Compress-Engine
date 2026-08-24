@@ -35,6 +35,23 @@ V1's value is in outline mode. Two consequences worth acting on:
 - [ ] No `list_symbols` yet. The outline already is that list, so it only earns
       its place if real use shows the model asking for names it cannot see.
 
+## Awaiting real-use data (`bench/usage.jsonl`)
+
+The log records one line per tool call: tool, file, byte counts, outcome.
+It answers the questions ADR-009 and ADR-010 left open, and nothing should be
+built on top of guesses about them:
+
+- [ ] **How many `get_symbol` calls per task?** One or two means the 8 KB
+      threshold is right. Five means we outlined too eagerly (ADR-010).
+- [ ] **How often does an outlined pack go unexpanded?** Never expanded means
+      the outline was sufficient, and the threshold could go lower still.
+- [ ] **How often is a retrieved symbol most of its file?** Seen already in a
+      smoke test: `get_symbol(main)` on `core/main.ts` returned 18 KB against a
+      3 KB pack — outlining lost there. If common, the threshold should
+      consider symbol-size distribution, not just file size.
+- [ ] **Which refusals actually happen?** `outcome: refused` lines say whether
+      the deny list and size cap fire in practice or only in tests.
+
 ## Open questions
 
 - [ ] The 300-line module cap counts test code, which is ~60% of most files

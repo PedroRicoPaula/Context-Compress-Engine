@@ -9,6 +9,7 @@
 mod compress;
 mod mcp;
 mod tools;
+mod usage;
 
 use std::path::Path;
 use std::process::ExitCode;

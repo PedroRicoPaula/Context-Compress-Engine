@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use crate::compress::{self, OUTLINE_THRESHOLD_BYTES};
 use crate::mcp::dispatch;
 use crate::mcp::protocol::{codes, ToolSpec};
+use crate::usage;
 
 pub const NAME: &str = "compress_file";
 
@@ -62,15 +63,29 @@ pub fn run(arguments: &Value, root: &Path) -> Result<Value, (i32, String)> {
 
     let threshold = args.outline_threshold.unwrap_or(OUTLINE_THRESHOLD_BYTES);
     match compress::compress_file(&args.file_path, root, threshold) {
-        Ok(report) => Ok(dispatch::tool_result(
-            &render_report(&report, &args.task_description),
-            false,
-        )),
+        Ok(report) => {
+            let text = render_report(&report, &args.task_description);
+            usage::record(&usage::Record {
+                tool: NAME,
+                file: &args.file_path,
+                input_bytes: Some(report.original_bytes),
+                output_bytes: text.len(),
+                outcome: if report.outlined { "outline" } else { "full" },
+            });
+            Ok(dispatch::tool_result(&text, false))
+        }
         // Guard errors are categories, never OS messages (docs/SECURITY.md).
-        Err(error) => Ok(dispatch::tool_result(
-            &format!("compress_file failed: {error}"),
-            true,
-        )),
+        Err(error) => {
+            let text = format!("compress_file failed: {error}");
+            usage::record(&usage::Record {
+                tool: NAME,
+                file: &args.file_path,
+                input_bytes: None,
+                output_bytes: text.len(),
+                outcome: "refused",
+            });
+            Ok(dispatch::tool_result(&text, true))
+        }
     }
 }
 

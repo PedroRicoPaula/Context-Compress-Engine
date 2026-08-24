@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 use crate::compress;
 use crate::mcp::dispatch;
 use crate::mcp::protocol::{codes, ToolSpec};
+use crate::usage;
 
 pub const NAME: &str = "get_symbol";
 
@@ -70,17 +71,42 @@ pub fn run(arguments: &Value, root: &Path) -> Result<Value, (i32, String)> {
                 },
             );
             text.push_str(&snippet.text);
+            usage::record(&usage::Record {
+                tool: NAME,
+                file: &args.file_path,
+                input_bytes: None,
+                output_bytes: text.len(),
+                outcome: if snippet.truncated {
+                    "symbol-truncated"
+                } else {
+                    "symbol"
+                },
+            });
             Ok(dispatch::tool_result(&text, false))
         }
         // Not found is an answer, not a fault: the model can try another name.
-        Ok(None) => Ok(dispatch::tool_result(
-            &format!("no symbol named `{}` in {}", args.symbol, args.file_path),
-            true,
-        )),
-        Err(error) => Ok(dispatch::tool_result(
-            &format!("get_symbol failed: {error}"),
-            true,
-        )),
+        Ok(None) => {
+            let text = format!("no symbol named `{}` in {}", args.symbol, args.file_path);
+            usage::record(&usage::Record {
+                tool: NAME,
+                file: &args.file_path,
+                input_bytes: None,
+                output_bytes: text.len(),
+                outcome: "symbol-not-found",
+            });
+            Ok(dispatch::tool_result(&text, true))
+        }
+        Err(error) => {
+            let text = format!("get_symbol failed: {error}");
+            usage::record(&usage::Record {
+                tool: NAME,
+                file: &args.file_path,
+                input_bytes: None,
+                output_bytes: text.len(),
+                outcome: "refused",
+            });
+            Ok(dispatch::tool_result(&text, true))
+        }
     }
 }
 
