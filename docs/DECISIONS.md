@@ -177,3 +177,49 @@ selection earning its place with evidence rather than argument.
 project whose thesis is "too much context is the problem" should not answer it
 with 6,000 speculative words about a system that has never been used in anger.
 The decisions live here, where decisions are already looked for.
+
+---
+
+## ADR-010: Outline threshold is 8 KB, measured
+
+**Context.** `OUTLINE_THRESHOLD_BYTES` was 24 KB, set by guess before outline
+mode kept whole signatures (ADR-008), docstring summaries (ADR-007), or had a
+way back via `get_symbol` (ADR-009). It was calibrated against a version of
+the feature that no longer exists.
+
+**Method.** `bench/threshold.py` runs the release binary over 274 real files
+(6.6 MB) from three projects — this repo, a TypeScript/Python app, and scipy —
+sweeping the threshold and comparing each file against itself compressed whole.
+
+| threshold | files outlined | corpus saved | body loss/file |
+|---|---|---|---|
+| 2048 | 212 | 84.5% | 22.5 KB |
+| 4096 | 148 | 82.7% | 31.5 KB |
+| **8192** | **88** | **79.0%** | 50.1 KB |
+| 16384 | 55 | 74.1% | 74.3 KB |
+| 24576 (was) | 37 | 69.4% | 102.0 KB |
+| 49152 | 25 | 64.2% | 137.4 KB |
+
+**Decision.** 8192.
+
+**Reasoning.** The curve has a knee there. 24 KB → 8 KB buys 9.6 points;
+8 KB → 4 KB buys 3.7 more while nearly doubling the files that lose bodies,
+and every outlined file is a potential extra `get_symbol` round trip. Above
+8 KB we leave most of the value unclaimed; below it we pay in tool calls for
+diminishing returns.
+
+**Consequence.** Files between 8 and 24 KB now outline — 51 more in this
+corpus. Their bodies are recoverable one call at a time, which is what makes
+the more aggressive setting defensible at all: without ADR-009 this would be
+straightforward loss.
+
+**Also measured, worth recording:** structural compression alone (no
+outlining) saves ~12% and is *flat across every file size* — 5.4% at 1–2 KB,
+12.3% at 64 KB+. The cheap passes are not where the value is. Nearly all of it
+is outline mode, which is why the threshold matters more than any heuristic
+in `comments.rs` or `whitespace.rs`.
+
+**What would change it.** Real use showing several `get_symbol` calls per
+task: that means we outlined too eagerly, and the threshold goes back up.
+`outlineThreshold` is now a per-call argument, so this is tunable without a
+rebuild — and re-measurable with `bench/threshold.py` against any corpus.

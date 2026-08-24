@@ -23,8 +23,12 @@ pub use guard::GuardError;
 pub use lang::Language;
 
 /// Above this many bytes *after* the cheap passes, fall back to outline mode.
-/// Roughly 6k tokens — past that, shape beats detail for an agent's context.
-pub const OUTLINE_THRESHOLD_BYTES: usize = 24 * 1024;
+///
+/// Measured, not guessed (ADR-010). `bench/threshold.py` swept this over 274
+/// real files from three projects: 24 KB left 69.4% of the corpus saved, 8 KB
+/// leaves 79.0%, and going below 8 KB buys 3.7 more points while nearly
+/// doubling how many files lose their bodies. This is the knee of that curve.
+pub const OUTLINE_THRESHOLD_BYTES: usize = 8 * 1024;
 
 /// Result of compressing one source.
 #[derive(Debug)]

@@ -74,6 +74,7 @@ startup banner naming the root — check it if paths are being refused.
 |---|---|---|
 | `filePath` | string | required. Relative to the server's working directory. |
 | `taskDescription` | string | optional. Accepted and echoed; **not yet used** for ranking. |
+| `outlineThreshold` | integer | optional. Bytes above which bodies are elided. Default 8192 (ADR-010). |
 
 **`get_symbol`** — read one definition back, whole.
 
@@ -82,7 +83,7 @@ startup banner naming the root — check it if paths are being refused.
 | `filePath` | string | required. |
 | `symbol` | string | required. Exact name, as it appears in the outline. |
 
-The two are counterparts. Above 24 KB, `compress_file` switches to outline
+The two are counterparts. Above 8 KB, `compress_file` switches to outline
 mode: signatures and doc summaries, bodies elided. `get_symbol` brings back the
 one body you actually need, with its decorators, doc comment, and line range.
 

@@ -8,7 +8,7 @@
 
 mod compress;
 mod mcp;
-mod tool;
+mod tools;
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -19,7 +19,7 @@ use tokio::io::{stdin, stdout, BufReader};
 use mcp::dispatch::{self, Method};
 use mcp::protocol::{codes, Request, Response};
 use mcp::transport::{self, Incoming};
-use tool::{call_tool, tool_specs};
+use tools::{call_tool, tool_specs};
 
 /// Build the reply for one request, or `None` if it was a notification.
 fn handle(request: &Request, root: &Path) -> Option<Response> {
@@ -128,7 +128,7 @@ mod tests {
         clippy::indexing_slicing
     )]
     use super::*;
-    use tool::TOOL_COMPRESS_FILE;
+    use tools::TOOL_COMPRESS_FILE;
 
     fn request(line: &str) -> Request {
         serde_json::from_str(line).expect("valid request json")

@@ -15,10 +15,10 @@ The cheap passes barely pay on code that is already clean, because they remove
 inline comments and stray whitespace and such files have neither. Nearly all of
 V1's value is in outline mode. Two consequences worth acting on:
 
-- [ ] `OUTLINE_THRESHOLD_BYTES` (24 KB) is a guess and is probably too high.
-      Make it a tool argument before tuning it blind.
-- [ ] Measure against a foreign codebase, not our own. Our files are unusually
-      doc-heavy and unusually well formatted — the worst possible benchmark.
+- [x] `OUTLINE_THRESHOLD_BYTES` measured and set to 8 KB (ADR-010). Now also a
+      per-call `outlineThreshold` argument.
+- [x] Measured against a foreign codebase — 274 files, 6.6 MB, three projects.
+      `bench/threshold.py` re-runs it against any corpus.
 - [ ] Byte ratio flatters outline mode and punishes doc retention. Token
       counting would tell the truth.
 
@@ -76,6 +76,16 @@ calling `get_symbol` repeatedly per task, hunting for the right piece.
       `#[ignore]`d test in `signatures.rs` documents it.
 - [ ] Languages: only Rust/Python/JS/TS have real rules. Everything else is the
       generic whitespace path.
+
+## Measured, 2026-08-24 (`bench/threshold.py`, 274 files, 6.6 MB)
+
+- Structural passes alone save ~12%, and that is **flat across every file
+  size** (5.4% at 1–2 KB, 12.3% at 64 KB+). Tuning `comments.rs` or
+  `whitespace.rs` further is not where the value is.
+- Outline mode at 8 KB takes the corpus to 79.0%.
+- By language: Python 12.5%, TypeScript 11.1%, Rust 5.3% structural. Rust is
+  lowest because we keep doc comments (ADR-006) and our own code is unusually
+  doc-heavy.
 
 ## Ops
 
