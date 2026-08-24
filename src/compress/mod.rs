@@ -6,6 +6,8 @@
 //! protocol in the way.
 
 pub mod comments;
+pub mod declaration;
+pub mod docstring;
 pub mod guard;
 pub mod imports;
 pub mod lang;
