@@ -45,8 +45,13 @@ Third response contains the context pack, prefixed with a stats header:
 
 ## Connect it
 
-Paths must be absolute. The server's **working directory is its security root** —
-it will refuse to read anything outside it (`docs/SECURITY.md`).
+Paths must be absolute. The server refuses to read anything outside its
+**security root** (`docs/SECURITY.md`): `CCE_ROOT` when set, otherwise the
+directory the client started it in.
+
+Set `CCE_ROOT` for any global install. Without it a globally-configured server
+inherits whatever directory the editor happened to launch from, which can be
+your entire home directory.
 
 **Claude Code** — `~/.claude.json`, or `.mcp.json` in a project:
 
@@ -61,7 +66,24 @@ it will refuse to read anything outside it (`docs/SECURITY.md`).
 }
 ```
 
-**Cursor** — `~/.cursor/mcp.json`, same shape.
+**Cursor** — `~/.cursor/mcp.json`, global across projects, so pin the root:
+
+```json
+{
+  "mcpServers": {
+    "context-compressor": {
+      "command": "/Users/you/.cargo/bin/context-compressor-mcp",
+      "env": {
+        "CCE_ROOT": "/Users/you/code",
+        "CCE_USAGE_LOG": "/Users/you/code/cce/bench/usage.jsonl"
+      }
+    }
+  }
+}
+```
+
+`CCE_USAGE_LOG` is optional: one JSON line per call, metadata only, never
+contents.
 
 Restart the client, then ask it to compress a file. `stderr` carries a one-line
 startup banner naming the root — check it if paths are being refused.

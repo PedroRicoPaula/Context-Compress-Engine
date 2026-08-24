@@ -13,8 +13,12 @@ is not a trusted caller — treat every tool argument as hostile input.
 1. **Canonicalize first.** `fs::canonicalize` resolves `..` and symlinks. Validate
    the *resolved* path, never the string as given.
 2. **Reject traversal.** Refuse a resolved path outside the configured root.
-   Default root is the process CWD. String-matching `".."` is not sufficient —
-   symlinks defeat it, canonicalization does not.
+   The root is `CCE_ROOT` when set, otherwise the process CWD. String-matching
+   `".."` is not sufficient — symlinks defeat it, canonicalization does not.
+   A set-but-invalid `CCE_ROOT` is **fatal**, never a fallback to CWD: whoever
+   named a root meant to restrict access, and quietly widening it inverts the
+   request. This matters most for a globally-installed server, which otherwise
+   inherits whatever directory its client started in — potentially `$HOME`.
 3. **Regular files only.** Refuse dirs, symlinks-to-elsewhere, FIFOs, devices.
    Reading `/dev/zero` or a FIFO hangs the server forever.
 4. **Size cap before read.** `MAX_FILE_BYTES` (8MB). `metadata()` then compare.

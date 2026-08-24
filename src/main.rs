@@ -11,7 +11,7 @@ mod mcp;
 mod tools;
 mod usage;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use serde_json::{json, Value};
@@ -49,14 +49,57 @@ fn handle(request: &Request, root: &Path) -> Option<Response> {
     }
 }
 
+/// Environment variable that pins the security root explicitly.
+const ENV_ROOT: &str = "CCE_ROOT";
+
+/// Decide the security root: everything readable lives under it.
+///
+/// `CCE_ROOT` wins when set, because a globally-installed server inherits
+/// whatever directory its client happened to start in — which can be the
+/// user's whole home. An explicit root is the difference between "this project"
+/// and "everything I own".
+///
+/// A set-but-invalid `CCE_ROOT` is fatal, never a silent fallback to the
+/// working directory: someone who named a root meant to restrict access, and
+/// quietly widening it would be the opposite of what they asked for.
+fn resolve_root() -> Result<(PathBuf, &'static str), String> {
+    resolve_root_from(std::env::var(ENV_ROOT).ok().as_deref())
+}
+
+/// The decision itself, with the environment passed in.
+///
+/// Separated so it is testable without mutating a process-wide variable that
+/// tests running in parallel also read (see `docs/ERRORS.md`).
+fn resolve_root_from(configured: Option<&str>) -> Result<(PathBuf, &'static str), String> {
+    match configured.map(str::trim) {
+        Some(value) if !value.is_empty() => {
+            let resolved = PathBuf::from(value)
+                .canonicalize()
+                .map_err(|_| format!("{ENV_ROOT} does not exist or is unreadable"))?;
+            if !resolved.is_dir() {
+                return Err(format!("{ENV_ROOT} is not a directory"));
+            }
+            Ok((resolved, ENV_ROOT))
+        }
+        _ => {
+            let cwd = std::env::current_dir()
+                .map_err(|_| "cannot determine working directory".to_owned())?;
+            Ok((cwd, "cwd"))
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
-    let Ok(root) = std::env::current_dir() else {
-        eprintln!("fatal: cannot determine working directory");
-        return ExitCode::FAILURE;
+    let (root, source) = match resolve_root() {
+        Ok(pair) => pair,
+        Err(message) => {
+            eprintln!("fatal: {message}");
+            return ExitCode::FAILURE;
+        }
     };
     eprintln!(
-        "{} {} ready on stdio (root: {})",
+        "{} {} ready on stdio (root: {} [{source}])",
         dispatch::SERVER_NAME,
         dispatch::SERVER_VERSION,
         root.display()
@@ -139,6 +182,39 @@ mod tests {
         let root = std::env::current_dir().expect("cwd");
         let response = handle(&request(line), &root).expect("expected a reply");
         serde_json::to_value(response).expect("serializable")
+    }
+
+    #[test]
+    fn an_unset_or_blank_root_falls_back_to_the_working_directory() {
+        for configured in [None, Some(""), Some("   ")] {
+            let (root, source) = resolve_root_from(configured).expect("cwd is resolvable");
+            assert_eq!(source, "cwd", "{configured:?}");
+            assert_eq!(root, std::env::current_dir().expect("cwd"));
+        }
+    }
+
+    #[test]
+    fn an_invalid_root_is_fatal_rather_than_a_silent_widening() {
+        // Falling back to cwd here would grant *more* access than the caller
+        // asked for, which is the wrong direction to fail in.
+        let error = resolve_root_from(Some("/nonexistent-9f2a/nope")).expect_err("must refuse");
+        assert!(error.contains(ENV_ROOT), "{error}");
+    }
+
+    #[test]
+    fn a_file_cannot_be_used_as_a_root() {
+        let error = resolve_root_from(Some("Cargo.toml")).expect_err("must refuse a file");
+        assert!(error.contains("not a directory"), "{error}");
+    }
+
+    #[test]
+    fn a_configured_root_is_canonicalized() {
+        // The guard compares resolved paths, so the root must be resolved too
+        // or nothing under a symlinked root would ever match it.
+        let (root, source) = resolve_root_from(Some("./src/..")).expect("resolvable");
+        assert_eq!(source, ENV_ROOT);
+        assert!(root.is_absolute(), "{root:?}");
+        assert!(!root.to_string_lossy().contains(".."), "{root:?}");
     }
 
     #[test]
