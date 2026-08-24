@@ -5,9 +5,11 @@
 //! [`Report`] back. That is what makes every heuristic testable without a
 //! protocol in the way.
 
+pub mod block;
 pub mod comments;
 pub mod declaration;
 pub mod docstring;
+pub mod extract;
 pub mod guard;
 pub mod imports;
 pub mod lang;
@@ -16,6 +18,7 @@ pub mod whitespace;
 
 use std::path::Path;
 
+pub use extract::Snippet;
 pub use guard::GuardError;
 pub use lang::Language;
 
@@ -89,6 +92,25 @@ pub fn compress_str(source: &str, language: Language, outline_threshold: usize) 
         text,
         outlined,
     }
+}
+
+/// Validate `requested` against `root` and pull one symbol out of it whole.
+///
+/// The counterpart to outline mode: what the outline elides, this restores on
+/// demand. Returns `Ok(None)` when the file is readable but holds no such
+/// symbol — that is an answer, not a failure.
+///
+/// # Errors
+/// Any [`GuardError`] from the trust boundary; nothing is read until the path
+/// passes validation.
+pub fn extract_symbol(
+    requested: &str,
+    root: &Path,
+    name: &str,
+) -> Result<Option<Snippet>, GuardError> {
+    let path = guard::resolve(requested, root)?;
+    let source = guard::read_text(&path)?;
+    Ok(extract::symbol(&source, Language::from_path(&path), name))
 }
 
 /// Validate `requested` against `root`, read it, and compress it.
@@ -204,6 +226,18 @@ use std::fmt;
     fn unknown_languages_still_get_whitespace_compression() {
         let report = compress_str("a\n\n\n\n\nb\n", Language::Other, OUTLINE_THRESHOLD_BYTES);
         assert_eq!(report.text, "a\n\nb\n");
+    }
+
+    #[test]
+    fn extraction_goes_through_the_same_trust_boundary_as_compression() {
+        // The guard is not optional on the second entry point.
+        let root = std::env::temp_dir();
+        let error = extract_symbol("../../../etc/hosts", &root, "anything")
+            .expect_err("traversal must be refused");
+        assert!(matches!(
+            error,
+            GuardError::OutsideRoot | GuardError::NotFound
+        ));
     }
 
     #[test]
