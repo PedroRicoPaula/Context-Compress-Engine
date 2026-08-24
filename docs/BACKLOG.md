@@ -35,6 +35,20 @@ V1's value is in outline mode. Two consequences worth acting on:
 - [ ] No `list_symbols` yet. The outline already is that list, so it only earns
       its place if real use shows the model asking for names it cannot see.
 
+## Measured: where session tokens actually go (`docs/WHERE-TOKENS-GO.md`)
+
+On this project's own build session: 101M billed tokens, 97.3% cache reads,
+each unique token re-read ~620x. Writing files outweighed reading them **11:1**,
+and tool results had a median of 274 characters with none over 5k.
+
+Read-side compression would have saved ~3.7% on that session. It was the least
+favourable case — the session built the compressor rather than reading an
+unfamiliar codebase — but it is the only measured number so far, and it sets
+expectations honestly.
+
+- [ ] Re-measure on a maintenance session, where reads should dominate.
+- [ ] A/B the same kind of work with and without the MCP server.
+
 ## Awaiting real-use data (`bench/usage.jsonl`)
 
 The log records one line per tool call: tool, file, byte counts, outcome.
