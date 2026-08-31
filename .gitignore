@@ -2,3 +2,11 @@ target/
 **/*.rs.bk
 .DS_Store
 bench/usage.jsonl
+
+# Personal editor/tool wiring -- machine-specific absolute paths, and
+# redundant with the `claude mcp add` / equivalent command documented in
+# README.md's "Connect it" section, which is how a clone should actually
+# set this up.
+.mcp.json
+.cursor/
+.codex/
